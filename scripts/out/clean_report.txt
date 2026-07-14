@@ -1,0 +1,23 @@
+Rows: 900 raw -> 696 real (204 empty trailing rows dropped)
+De-dupe on (artist,title,year): 696 -> 694 (2 dupes removed)
+
+== Parent genre distribution ==
+  Rock           208
+  Hip Hop        118
+  Folk           80
+  Metal          56
+  Pop            56
+  Punk           52
+  Soul / R&B     35
+  Electronic     32
+  Jazz           24
+  Country        12
+  Unknown        8
+  Reggae / Dub   5
+  Soundtrack     4
+  World          2
+  Ambient        2
+
+Unique artists: 394 | subgenres: 156
+Rated: 661 | with comments: 411
+Collection: 84 tagged ({'Wishlist': 62, 'Owned': 21, 'Owned (old copy)': 1})

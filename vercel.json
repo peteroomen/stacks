@@ -1,0 +1,5 @@
+{
+  "crons": [
+    { "path": "/api/ingest/listenbrainz", "schedule": "0 */4 * * *" }
+  ]
+}

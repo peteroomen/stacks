@@ -1,0 +1,26 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: abyss --default;
+}
+
+/* Signature: a faint vinyl-groove texture behind the app shell, and a
+   monospaced tabular feel for ratings so the numbers read like a ledger. */
+:root {
+  --groove: color-mix(in oklch, var(--color-base-content) 4%, transparent);
+}
+body {
+  background-image: radial-gradient(circle at 50% -20%, var(--groove) 0 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+.rating-num { font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.cover-fallback {
+  background:
+    linear-gradient(135deg,
+      color-mix(in oklch, var(--color-primary) 40%, var(--color-base-300)),
+      var(--color-base-300));
+}
+
+/* Mobile: keep form controls at >=16px so iOS Safari doesn't auto-zoom on focus. */
+@media (max-width: 640px) {
+  .input, .select, .textarea { font-size: 16px; }
+}

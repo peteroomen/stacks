@@ -1,0 +1,94 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { Album } from "@/lib/types";
+
+export default function AlbumDrawer({
+  album, onClose, onSaved,
+}: { album: Album | null; onClose: () => void; onSaved: (a: Album) => void }) {
+  const [rating, setRating] = useState<string>("");
+  const [comments, setComments] = useState<string>("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setRating(album?.rating != null ? String(album.rating) : "");
+    setComments(album?.comments ?? "");
+  }, [album]);
+
+  if (!album) return null;
+
+  async function save() {
+    setSaving(true);
+    const res = await fetch("/api/albums", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        id: album!.id,
+        rating: rating === "" ? null : Number(rating),
+        comments: comments || null,
+      }),
+    });
+    const d = await res.json();
+    setSaving(false);
+    if (d.album) { onSaved(d.album); onClose(); }
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-end sm:items-stretch sm:justify-end" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+      <aside className="relative w-full sm:max-w-md bg-base-200 max-h-[88vh] sm:max-h-none sm:h-full
+                        overflow-y-auto rounded-t-2xl sm:rounded-none border-t sm:border-t-0
+                        sm:border-l border-base-content/10 p-6 pt-4 space-y-4
+                        [padding-bottom:env(safe-area-inset-bottom)]"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-base-content/20 sm:hidden" />
+        <button className="btn btn-sm btn-circle btn-ghost absolute right-3 top-3"
+          onClick={onClose}>✕</button>
+
+        <div className="aspect-square w-40 rounded-lg cover-fallback shadow-lg
+                        flex items-center justify-center overflow-hidden">
+          {album.cover_art_url
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={album.cover_art_url} alt="" className="w-full h-full object-cover" />
+            : <span className="rating-num text-4xl font-black text-base-content/60">
+                {album.rating ?? "?"}</span>}
+        </div>
+
+        <div>
+          <h2 className="text-2xl font-black leading-tight">{album.title}</h2>
+          <p className="text-base-content/70">{album.artist}</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2 text-sm">
+          {album.year && <span className="badge badge-outline">{album.year}</span>}
+          {album.genre && <span className="badge badge-primary badge-outline">{album.genre}</span>}
+          {album.genre_parent && <span className="badge badge-ghost">{album.genre_parent}</span>}
+          <span className="badge badge-ghost">{album.release_type}</span>
+          {album.collection_status && <span className="badge badge-secondary">{album.collection_status}</span>}
+          <span className="badge badge-ghost">{album.listen_count} plays</span>
+        </div>
+
+        <div className="divider my-1" />
+
+        <label className="form-control">
+          <span className="label-text font-semibold">Your rating</span>
+          <input type="number" min={0} max={10} step={0.5} value={rating}
+            onChange={(e) => setRating(e.target.value)}
+            className="input input-bordered rating-num w-28"
+            placeholder="—" />
+        </label>
+
+        <label className="form-control">
+          <span className="label-text font-semibold">Your notes</span>
+          <textarea className="textarea textarea-bordered min-h-28" value={comments}
+            onChange={(e) => setComments(e.target.value)}
+            placeholder="What did you make of it?" />
+        </label>
+
+        <button className="btn btn-primary w-full" onClick={save} disabled={saving}>
+          {saving ? <span className="loading loading-spinner loading-sm" /> : "Save changes"}
+        </button>
+      </aside>
+    </div>
+  );
+}
