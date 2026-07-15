@@ -25,8 +25,8 @@ export default function HeaderNav() {
             key={href}
             href={href}
             aria-current={isActive(href, pathname) ? "page" : undefined}
-            className={`btn btn-ghost btn-sm rounded-lg transition-colors hover:bg-primary/15 hover:text-primary ${
-              isActive(href, pathname) ? "bg-primary/15 text-primary" : "text-base-content/80"
+            className={`btn btn-ghost btn-sm rounded-lg transition-colors ${
+              isActive(href, pathname) ? "text-primary" : "text-base-content/70 hover:text-base-content"
             }`}
           >
             {label}
@@ -35,7 +35,7 @@ export default function HeaderNav() {
         <form action="/auth/signout" method="post">
           <button
             type="submit"
-            className="btn btn-ghost btn-sm rounded-lg text-base-content/60 transition-colors hover:bg-error/15 hover:text-error"
+            className="btn btn-ghost btn-sm rounded-lg text-base-content/60 transition-colors hover:text-error"
           >
             Sign out
           </button>
@@ -60,7 +60,7 @@ export default function HeaderNav() {
                 href={href}
                 aria-current={isActive(href, pathname) ? "page" : undefined}
                 className={`py-3 ${
-                  isActive(href, pathname) ? "bg-primary/15 text-primary font-semibold" : ""
+                  isActive(href, pathname) ? "text-primary font-semibold" : ""
                 }`}
               >
                 {label}

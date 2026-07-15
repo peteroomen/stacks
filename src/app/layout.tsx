@@ -28,7 +28,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen">
         <div className="navbar bg-base-200/60 backdrop-blur border-b border-base-content/10 sticky top-0 z-30">
           <div className="flex-1">
-            <Link href="/" className="btn btn-ghost px-2 text-3xl sm:text-4xl font-black tracking-tight">
+            <Link href="/" className="btn btn-ghost px-2 text-2xl font-black tracking-tight">
               stacks<Vinyl />
             </Link>
           </div>

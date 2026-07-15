@@ -55,7 +55,7 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
     <div className="space-y-5">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-3xl font-black tracking-tight">Library</h1>
+          <h1 className="text-2xl font-black tracking-tight">Library</h1>
           <p className="text-base-content/60 text-sm">
             {loading ? "…" : `${total} of ${facets.total} albums`}
           </p>
