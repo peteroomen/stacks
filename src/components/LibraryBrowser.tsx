@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Album, AlbumFilters } from "@/lib/types";
+import { ytMusicUrl } from "@/lib/yt";
 import AlbumDrawer from "./AlbumDrawer";
 
 type Facets = {
@@ -116,18 +117,24 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
         <div className="overflow-x-auto card bg-base-200/40 border border-base-content/10">
           <table className="table table-sm table-zebra">
             <thead>
-              <tr><th>Artist</th><th>Title</th><th>Year</th><th>Genre</th>
-                <th className="text-right">Rating</th><th className="text-right">Plays</th></tr>
+              <tr><th className="w-10"></th><th>Artist</th><th>Title</th><th>Year</th><th>Genre</th>
+                <th className="text-right">Rating</th><th className="text-right">Plays</th><th></th></tr>
             </thead>
             <tbody>
               {albums.map((a) => (
                 <tr key={a.id} className="hover cursor-pointer" onClick={() => setActive(a)}>
+                  <td><Thumb album={a} /></td>
                   <td className="font-medium">{a.artist}</td>
                   <td>{a.title}</td>
                   <td className="text-base-content/60">{a.year ?? "—"}</td>
                   <td><span className="badge badge-ghost badge-sm">{a.genre ?? "—"}</span></td>
                   <td className="text-right rating-num font-bold">{a.rating ?? "—"}</td>
                   <td className="text-right rating-num text-base-content/60">{a.listen_count}</td>
+                  <td>
+                    <a href={ytMusicUrl(a.artist, a.title)} target="_blank" rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()} title="Play on YouTube Music"
+                      className="btn btn-ghost btn-xs btn-circle text-primary">▶</a>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -149,6 +156,17 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
 
       <AlbumDrawer album={active} onClose={() => setActive(null)}
         onSaved={(u) => setAlbums((xs) => xs.map((x) => (x.id === u.id ? u : x)))} />
+    </div>
+  );
+}
+
+function Thumb({ album }: { album: Album }) {
+  return album.cover_art_url ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={album.cover_art_url} alt="" className="w-9 h-9 rounded object-cover" />
+  ) : (
+    <div className="cover-fallback w-9 h-9 rounded flex items-center justify-center text-[10px] rating-num text-base-content/60">
+      {album.rating ?? ""}
     </div>
   );
 }

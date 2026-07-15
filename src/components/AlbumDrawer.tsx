@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Album } from "@/lib/types";
+import { ytMusicUrl } from "@/lib/yt";
 
 export default function AlbumDrawer({
   album, onClose, onSaved,
@@ -58,6 +59,11 @@ export default function AlbumDrawer({
           <h2 className="text-2xl font-black leading-tight">{album.title}</h2>
           <p className="text-base-content/70">{album.artist}</p>
         </div>
+
+        <a href={ytMusicUrl(album.artist, album.title)} target="_blank" rel="noopener noreferrer"
+          className="btn btn-sm btn-primary w-full gap-2">
+          <span aria-hidden>▶</span> Play on YouTube Music
+        </a>
 
         <div className="flex flex-wrap gap-2 text-sm">
           {album.year && <span className="badge badge-outline">{album.year}</span>}
