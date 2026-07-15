@@ -49,6 +49,23 @@ async function caaFront(mbid: string): Promise<string | null> {
   return front.thumbnails?.["500"] ?? front.thumbnails?.large ?? front.image ?? null;
 }
 
+// Fuzzy fallback: Deezer album search — fast, not rate-limited, typo-tolerant.
+async function deezerCover(artist: string, title: string): Promise<string | null> {
+  const q = `artist:"${normalizeArtist(artist).replace(/"/g, " ")}" album:"${title.replace(/"/g, " ")}"`;
+  const res = await fetch(`https://api.deezer.com/search/album?q=${encodeURIComponent(q)}&limit=5`, { headers: { "User-Agent": UA }, cache: "no-store" });
+  if (!res.ok) return null;
+  const d = await res.json();
+  if (d?.error) return null;
+  const results: any[] = d.data ?? [];
+  if (!results.length) return null;
+  const ourTokens = norm(`${normalizeArtist(artist)} ${title}`).split(" ").filter((t) => t.length >= 4);
+  const pick = results.find((r) => {
+    const theirs = norm(`${r.artist?.name ?? ""} ${r.title ?? ""}`);
+    return ourTokens.some((t) => theirs.includes(t));
+  }) ?? results[0];
+  return pick?.cover_xl ?? pick?.cover_big ?? pick?.cover_medium ?? null;
+}
+
 // Fuzzy fallback: iTunes Search. Forgiving of spelling, word order, bracket junk.
 async function itunesCover(artist: string, title: string): Promise<string | null> {
   const term = `${normalizeArtist(artist)} ${title}`.replace(/[[\]()]/g, " ").replace(/\s+/g, " ").trim();
@@ -95,7 +112,10 @@ export async function GET(req: Request) {
     processed++;
     try {
       const mbid = await mbReleaseGroup(a.artist, a.title);
-      const cover = (mbid ? await caaFront(mbid) : null) ?? (await itunesCover(a.artist, a.title));
+      const cover =
+        (mbid ? await caaFront(mbid) : null) ??
+        (await deezerCover(a.artist, a.title)) ??
+        (await itunesCover(a.artist, a.title));
       if (cover) {
         await supabase
           .from("albums")
