@@ -62,16 +62,17 @@ for (const p of plays) {
 }
 console.log(`Matched ${matched}/${plays.length} plays to a track (${byTrack.size} distinct tracks).`);
 
-// write plays.track_id (grouped by track_id, chunked)
+// write plays.track_id via a single bulk RPC per chunk — flatten to
+// [play_id, track_id] pairs so it's a handful of calls, not one per track.
+const pairs = [];
+for (const [trackId, playIds] of byTrack) for (const pid of playIds) pairs.push([pid, trackId]);
 let written = 0;
-for (const [trackId, playIds] of byTrack) {
-  for (let i = 0; i < playIds.length; i += 200) {
-    const chunk = playIds.slice(i, i + 200);
-    const { error } = await supabase.from("plays").update({ track_id: trackId }).in("id", chunk);
-    if (error) { console.error("update plays:", error.message); process.exit(1); }
-    written += chunk.length;
-  }
-  if (written % 2000 < 200) console.log(`  …${written} plays linked`);
+for (let i = 0; i < pairs.length; i += 1000) {
+  const chunk = pairs.slice(i, i + 1000);
+  const { error } = await supabase.rpc("link_plays_to_tracks", { p_owner: OWNER, p_pairs: chunk });
+  if (error) { console.error("link rpc:", error.message); process.exit(1); }
+  written += chunk.length;
+  console.log(`  …${written}/${pairs.length} plays linked`);
 }
 
 console.log("Rolling up play counts…");
