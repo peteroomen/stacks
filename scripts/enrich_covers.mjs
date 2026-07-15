@@ -62,6 +62,25 @@ async function caaFront(mbid) {
   return front.thumbnails?.["500"] ?? front.thumbnails?.large ?? front.image;
 }
 
+// Fuzzy fallback: iTunes Search. Forgiving of spelling (Rumors/Rumours),
+// word order (handles swapped artist/title), and bracket junk. Guards against
+// junk matches by requiring a shared significant token.
+async function itunesCover(artist, title) {
+  const term = `${normalizeArtist(artist)} ${title}`.replace(/[[\]()]/g, " ").replace(/\s+/g, " ").trim();
+  const url = `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=album&media=music&limit=5`;
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) return null;
+  const results = (await res.json()).results ?? [];
+  if (!results.length) return null;
+  const ourTokens = norm(`${normalizeArtist(artist)} ${title}`).split(" ").filter((t) => t.length >= 4);
+  const pick = results.find((r) => {
+    const theirs = norm(`${r.artistName ?? ""} ${r.collectionName ?? ""}`);
+    return ourTokens.some((t) => theirs.includes(t));
+  });
+  const art = pick?.artworkUrl100 ?? pick?.artworkUrl60;
+  return art ? art.replace(/\/\d+x\d+bb\./, "/600x600bb.") : null;
+}
+
 const { data: albums, error } = await supabase
   .from("albums")
   .select("id, artist, title")
@@ -81,16 +100,17 @@ for (let i = 0; i < albums.length; i++) {
   const a = albums[i];
   const tag = `[${i + 1}/${albums.length}] ${a.artist} — ${a.title}`;
   try {
-    const mbid = await mbReleaseGroup(a.artist, a.title);
-    if (!mbid) { console.log(`  ✗ no match  ${tag}`); missed++; await sleep(1100); continue; }
-    const cover = await caaFront(mbid);
-    if (!cover) { console.log(`  ✗ no art    ${tag}`); missed++; await sleep(1100); continue; }
+    let mbid = await mbReleaseGroup(a.artist, a.title);
+    let cover = mbid ? await caaFront(mbid) : null;
+    let src = cover ? "caa" : "";
+    if (!cover) { cover = await itunesCover(a.artist, a.title); if (cover) { src = "itunes"; mbid = null; } }
+    if (!cover) { console.log(`  ✗ no cover  ${tag}`); missed++; await sleep(1100); continue; }
     const { error: upErr } = await supabase
       .from("albums")
       .update({ cover_art_url: cover, mbid })
       .eq("id", a.id);
     if (upErr) throw new Error(upErr.message);
-    console.log(`  ✓ cover     ${tag}`);
+    console.log(`  ✓ ${src.padEnd(6)} ${tag}`);
     found++;
   } catch (e) {
     console.log(`  ! error     ${tag} — ${e.message}`);

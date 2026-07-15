@@ -49,6 +49,25 @@ async function caaFront(mbid: string): Promise<string | null> {
   return front.thumbnails?.["500"] ?? front.thumbnails?.large ?? front.image ?? null;
 }
 
+// Fuzzy fallback: iTunes Search. Forgiving of spelling, word order, bracket junk.
+async function itunesCover(artist: string, title: string): Promise<string | null> {
+  const term = `${normalizeArtist(artist)} ${title}`.replace(/[[\]()]/g, " ").replace(/\s+/g, " ").trim();
+  const res = await fetch(
+    `https://itunes.apple.com/search?term=${encodeURIComponent(term)}&entity=album&media=music&limit=5`,
+    { headers: { "User-Agent": UA }, cache: "no-store" }
+  );
+  if (!res.ok) return null;
+  const results: any[] = (await res.json()).results ?? [];
+  if (!results.length) return null;
+  const ourTokens = norm(`${normalizeArtist(artist)} ${title}`).split(" ").filter((t) => t.length >= 4);
+  const pick = results.find((r) => {
+    const theirs = norm(`${r.artistName ?? ""} ${r.collectionName ?? ""}`);
+    return ourTokens.some((t) => theirs.includes(t));
+  });
+  const art = pick?.artworkUrl100 ?? pick?.artworkUrl60;
+  return art ? art.replace(/\/\d+x\d+bb\./, "/600x600bb.") : null;
+}
+
 export async function GET(req: Request) {
   const auth = req.headers.get("authorization");
   if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -76,9 +95,12 @@ export async function GET(req: Request) {
     processed++;
     try {
       const mbid = await mbReleaseGroup(a.artist, a.title);
-      const cover = mbid ? await caaFront(mbid) : null;
-      if (mbid && cover) {
-        await supabase.from("albums").update({ cover_art_url: cover, mbid }).eq("id", a.id);
+      const cover = (mbid ? await caaFront(mbid) : null) ?? (await itunesCover(a.artist, a.title));
+      if (cover) {
+        await supabase
+          .from("albums")
+          .update({ cover_art_url: cover, mbid: mbid ?? null })
+          .eq("id", a.id);
         found++;
       } else missed++;
     } catch {
