@@ -16,6 +16,18 @@ export type Album = {
   created_at: string;
 };
 
+export type Track = {
+  id: string;
+  album_id: string;
+  disc_no: number;
+  track_no: number | null;
+  title: string;
+  duration_ms: number | null;
+  rating: number | null;
+  comments: string | null;
+  play_count: number;
+};
+
 export type AlbumFilters = {
   q?: string;
   parent?: string;      // genre_parent

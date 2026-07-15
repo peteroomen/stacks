@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Album } from "@/lib/types";
+import type { Album, Track } from "@/lib/types";
 import { ytMusicUrl } from "@/lib/yt";
+
+const fmtDur = (ms: number | null) => {
+  if (!ms) return "";
+  const s = Math.round(ms / 1000);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
 
 export default function AlbumDrawer({
   album, onClose, onSaved,
@@ -10,10 +16,22 @@ export default function AlbumDrawer({
   const [rating, setRating] = useState<string>("");
   const [comments, setComments] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [tracks, setTracks] = useState<Track[] | null>(null);
 
   useEffect(() => {
     setRating(album?.rating != null ? String(album.rating) : "");
     setComments(album?.comments ?? "");
+  }, [album]);
+
+  useEffect(() => {
+    if (!album) return;
+    setTracks(null);
+    let cancel = false;
+    fetch(`/api/tracks?album_id=${album.id}`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancel) setTracks(d.tracks ?? []); })
+      .catch(() => { if (!cancel) setTracks([]); });
+    return () => { cancel = true; };
   }, [album]);
 
   if (!album) return null;
@@ -94,6 +112,34 @@ export default function AlbumDrawer({
         <button className="btn btn-primary w-full" onClick={save} disabled={saving}>
           {saving ? <span className="loading loading-spinner loading-sm" /> : "Save changes"}
         </button>
+
+        {tracks && tracks.length > 0 && (
+          <div className="pt-1">
+            <div className="divider my-1 text-xs text-base-content/40">
+              {tracks.length} tracks
+            </div>
+            <ol className="text-sm divide-y divide-base-content/5">
+              {tracks.map((t) => (
+                <li key={t.id} className="flex items-center gap-3 py-1.5">
+                  <span className="w-5 text-right text-xs text-base-content/40 rating-num shrink-0">
+                    {t.track_no ?? "•"}
+                  </span>
+                  <span className="flex-1 truncate">{t.title}</span>
+                  {t.play_count > 0 && (
+                    <span className="text-xs text-base-content/50 rating-num shrink-0">
+                      {t.play_count}▶
+                    </span>
+                  )}
+                  {t.duration_ms != null && (
+                    <span className="text-xs text-base-content/40 rating-num shrink-0 w-9 text-right">
+                      {fmtDur(t.duration_ms)}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
       </aside>
     </div>
   );
