@@ -26,17 +26,27 @@ const supabase = createClient(URL, KEY, {
 const UA = "stacks-album-tracker/1.0 (petertheoomen@gmail.com)"; // MusicBrainz requires a real UA
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Un-sort sort-name artists: "Beatles, The" -> "The Beatles", "Band, The" -> "The Band".
+function normalizeArtist(name) {
+  const m = String(name).match(/^(.*?),\s*(the|a|an)\s*$/i);
+  return m ? `${m[2]} ${m[1]}`.trim() : name;
+}
+const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
 async function mbReleaseGroup(artist, title) {
-  const q = `artist:"${artist.replace(/"/g, " ")}" AND releasegroup:"${title.replace(/"/g, " ")}"`;
-  const url = `https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(q)}&fmt=json&limit=3`;
+  const q = `artist:"${normalizeArtist(artist).replace(/"/g, " ")}" AND releasegroup:"${title.replace(/"/g, " ")}"`;
+  const url = `https://musicbrainz.org/ws/2/release-group/?query=${encodeURIComponent(q)}&fmt=json&limit=5`;
   const res = await fetch(url, { headers: { "User-Agent": UA, Accept: "application/json" } });
   if (!res.ok) throw new Error(`MB ${res.status}`);
   const data = await res.json();
   const groups = data["release-groups"] ?? [];
   if (!groups.length) return null;
-  // prefer an Album; fall back to the top-scored result
-  const pick = groups.find((g) => g["primary-type"] === "Album") ?? groups[0];
-  if ((pick.score ?? 0) < 80) return null; // avoid confident-but-wrong matches
+  // Prefer an exact title match (accept those even at a lower score); otherwise
+  // fall back to the top result only if it's a confident match.
+  const exact = groups.filter((g) => norm(g.title) === norm(title));
+  const pool = exact.length ? exact : groups;
+  const pick = pool.find((g) => g["primary-type"] === "Album") ?? pool[0];
+  if (!exact.length && (pick.score ?? 0) < 85) return null;
   return pick.id;
 }
 

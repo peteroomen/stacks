@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/ingest/listenbrainz", "schedule": "0 8 * * *" }
+    { "path": "/api/ingest/listenbrainz", "schedule": "0 8 * * *" },
+    { "path": "/api/enrich/covers", "schedule": "30 8 * * *" }
   ]
 }
