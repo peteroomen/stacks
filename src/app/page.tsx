@@ -1,7 +1,6 @@
 import { supabaseServer } from "@/lib/supabase/server";
 import StatsPanel from "@/components/StatsPanel";
 import InsightCards from "@/components/InsightCards";
-import Chat from "@/components/Chat";
 import type { Album } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -24,15 +23,12 @@ export default async function Dashboard() {
 
       <StatsPanel albums={albums} />
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-2 space-y-4">
+      <section className="space-y-4">
+        <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold">Insights</h2>
-          <InsightCards />
+          <a href="/chat" className="btn btn-ghost btn-sm">Ask about your library →</a>
         </div>
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold">Ask about your library</h2>
-          <Chat />
-        </div>
+        <InsightCards />
       </section>
     </div>
   );
