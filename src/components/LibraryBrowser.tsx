@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Album, AlbumFilters } from "@/lib/types";
 import { ytMusicUrl } from "@/lib/yt";
 import AlbumDrawer from "./AlbumDrawer";
+import { RatingStamp } from "./Vinyl";
 
 type Facets = {
   parents: string[]; genres: string[]; releaseTypes: string[]; collections: string[];
@@ -48,52 +49,54 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
             {loading ? "…" : `${total} of ${facets.total} albums`}
           </p>
         </div>
-        <div className="join border border-base-content/10">
-          <button className={`btn btn-sm join-item ${view === "grid" ? "btn-primary" : "btn-neutral"}`}
+        <div className="join">
+          <button className={`btn btn-sm join-item border-0 ${view === "grid" ? "btn-primary" : "btn-neutral"}`}
             onClick={() => setView("grid")}>Grid</button>
-          <button className={`btn btn-sm join-item ${view === "table" ? "btn-primary" : "btn-neutral"}`}
+          <button className={`btn btn-sm join-item border-0 ${view === "table" ? "btn-primary" : "btn-neutral"}`}
             onClick={() => setView("table")}>Table</button>
         </div>
       </header>
 
-      {/* Filter bar */}
+      {/* Filter bar — stacks on mobile, lays out horizontally on desktop */}
       <div className="card bg-base-200/50 border border-base-content/10">
-        <div className="card-body p-4 flex flex-wrap items-center gap-3">
-          <input className="input input-bordered input-sm flex-1 min-w-[200px]"
+        <div className="card-body p-4 gap-3">
+          <input className="input input-bordered input-sm w-full"
             placeholder="Search artist, title, or your notes…"
             onChange={(e) => set({ q: e.target.value || undefined })} />
-          <select className="select select-bordered select-sm min-w-[9rem]"
-            onChange={(e) => set({ parent: e.target.value || undefined })}>
-            <option value="">All genres</option>
-            {facets.parents.map((g) => <option key={g}>{g}</option>)}
-          </select>
-          <select className="select select-bordered select-sm min-w-[9rem]"
-            value={f.sort}
-            onChange={(e) => setF((p) => ({ ...p, sort: e.target.value, page: 1 }))}>
-            <option value="rating.desc">Highest rated</option>
-            <option value="rating.asc">Lowest rated</option>
-            <option value="year.desc">Newest</option>
-            <option value="year.asc">Oldest</option>
-            <option value="listen_count.desc">Most played</option>
-            <option value="created_at.desc">Recently added</option>
-            <option value="artist.asc">Artist A–Z</option>
-          </select>
-          <select className="select select-bordered select-sm min-w-[9rem]"
-            onChange={(e) => set({ collection: e.target.value || undefined })}>
-            <option value="">Any collection</option>
-            {facets.collections.map((c) => <option key={c}>{c}</option>)}
-          </select>
-          <div className="flex items-center gap-2 text-sm whitespace-nowrap">
-            <span className="text-base-content/60">Rating ≥</span>
-            <input type="number" min={0} max={10} step={0.5}
-              className="input input-bordered input-sm w-16"
-              onChange={(e) => set({ ratingMin: e.target.value ? Number(e.target.value) : undefined })} />
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+            <select className="select select-bordered select-sm sm:w-40"
+              onChange={(e) => set({ parent: e.target.value || undefined })}>
+              <option value="">All genres</option>
+              {facets.parents.map((g) => <option key={g}>{g}</option>)}
+            </select>
+            <select className="select select-bordered select-sm sm:w-44"
+              value={f.sort}
+              onChange={(e) => setF((p) => ({ ...p, sort: e.target.value, page: 1 }))}>
+              <option value="rating.desc">Highest rated</option>
+              <option value="rating.asc">Lowest rated</option>
+              <option value="year.desc">Newest</option>
+              <option value="year.asc">Oldest</option>
+              <option value="listen_count.desc">Most played</option>
+              <option value="created_at.desc">Recently added</option>
+              <option value="artist.asc">Artist A–Z</option>
+            </select>
+            <select className="select select-bordered select-sm sm:w-44"
+              onChange={(e) => set({ collection: e.target.value || undefined })}>
+              <option value="">Any collection</option>
+              {facets.collections.map((c) => <option key={c}>{c}</option>)}
+            </select>
+            <div className="flex items-center gap-2 text-sm whitespace-nowrap sm:ml-auto">
+              <span className="text-base-content/60">Rating ≥</span>
+              <input type="number" min={0} max={10} step={0.5}
+                className="input input-bordered input-sm w-16"
+                onChange={(e) => set({ ratingMin: e.target.value ? Number(e.target.value) : undefined })} />
+            </div>
+            <label className="label cursor-pointer gap-2 text-sm whitespace-nowrap py-0">
+              <input type="checkbox" className="checkbox checkbox-sm checkbox-primary"
+                onChange={(e) => set({ unratedOnly: e.target.checked || undefined })} />
+              Unrated only
+            </label>
           </div>
-          <label className="label cursor-pointer gap-2 text-sm whitespace-nowrap py-0">
-            <input type="checkbox" className="checkbox checkbox-sm checkbox-primary"
-              onChange={(e) => set({ unratedOnly: e.target.checked || undefined })} />
-            Unrated only
-          </label>
         </div>
       </div>
 
@@ -172,18 +175,25 @@ function Thumb({ album }: { album: Album }) {
 }
 
 function Cover({ album }: { album: Album }) {
-  return album.cover_art_url ? (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={album.cover_art_url} alt={album.title}
-      className="aspect-square w-full rounded-md object-cover shadow-md
-                 group-hover:ring-2 ring-primary transition" />
-  ) : (
-    <div className="cover-fallback aspect-square w-full rounded-md shadow-md
-                    group-hover:ring-2 ring-primary transition flex items-center
-                    justify-center p-2">
-      {album.rating != null && (
-        <span className="rating-num text-2xl font-black text-base-content/70">{album.rating}</span>
+  return (
+    <div className="relative">
+      {album.cover_art_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={album.cover_art_url} alt={album.title}
+          className="aspect-square w-full rounded-md object-cover shadow-md
+                     group-hover:ring-2 ring-primary transition" />
+      ) : (
+        <div className="cover-fallback aspect-square w-full rounded-md shadow-md
+                        group-hover:ring-2 ring-primary transition flex items-center
+                        justify-center p-2">
+          {album.rating != null && (
+            <span className="rating-num text-2xl font-black text-base-content/70">{album.rating}</span>
+          )}
+        </div>
       )}
+      {/* Rated albums with real art get a vinyl-label stamp; the art-less
+          fallback already shows the number big, so it doesn't need one. */}
+      {album.cover_art_url && album.rating != null && <RatingStamp rating={album.rating} />}
     </div>
   );
 }

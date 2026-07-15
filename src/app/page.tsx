@@ -2,6 +2,7 @@ import { supabaseServer } from "@/lib/supabase/server";
 import StatsPanel from "@/components/StatsPanel";
 import InsightCards from "@/components/InsightCards";
 import type { Album } from "@/lib/types";
+import { Vinyl } from "@/components/Vinyl";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default async function Dashboard() {
     <div className="space-y-8">
       <section>
         <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
-          Good evening<span className="text-primary">.</span>
+          Good evening<Vinyl />
         </h1>
         <p className="text-base-content/60">
           {albums.length} albums logged · {albums.filter((a) => a.rating != null).length} rated
