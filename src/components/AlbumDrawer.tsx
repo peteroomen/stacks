@@ -38,8 +38,8 @@ export default function AlbumDrawer({
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
       <aside className="relative w-full sm:max-w-md bg-base-200 max-h-[88vh] sm:max-h-none sm:h-full
                         overflow-y-auto rounded-t-2xl sm:rounded-none border-t sm:border-t-0
-                        sm:border-l border-base-content/10 p-6 pt-4 space-y-4
-                        [padding-bottom:env(safe-area-inset-bottom)]"
+                        sm:border-l border-base-content/10 px-6 pt-4 space-y-4
+                        pb-[calc(1.5rem+env(safe-area-inset-bottom))]"
         onClick={(e) => e.stopPropagation()}>
         <div className="mx-auto mb-2 h-1 w-10 rounded-full bg-base-content/20 sm:hidden" />
         <button className="btn btn-sm btn-circle btn-ghost absolute right-3 top-3"
