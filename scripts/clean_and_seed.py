@@ -37,6 +37,14 @@ def tidy(x):
 for col in ["Artist", "Release Title", "Release Type", "Genre", "Comments", "Collection Status"]:
     df[col] = df[col].map(tidy)
 
+# Drop rows with no title — `albums.title` is NOT NULL, and a title-less row (an artist
+# with everything else blank) is a CSV artifact, not a real album. Must run AFTER tidy(),
+# which normalizes "" -> None. (The line-27 filter only catches rows missing BOTH fields.)
+_before_title = len(df)
+df = df[df["Release Title"].notna()].copy()
+if _before_title != len(df):
+    log(f"Dropped {_before_title - len(df)} row(s) with an empty title (not real albums)")
+
 # ---------------------------------------------------------------- canonicalize genre variants
 GENRE_CANON = {
     "Abstract Hip-Hop": "Abstract Hip Hop",
@@ -145,7 +153,7 @@ def sql(v):
 
 lines = ["-- Auto-generated seed. Idempotent via ON CONFLICT (nat_key).",
          "-- Assumes a single owner; owner_id is set at import time (see README).",
-         "insert into public.albums",
+         "insert into stacks.albums",
          "  (artist,title,release_type,year,genre,genre_parent,listen_count,rating,comments,collection_status,nat_key,source)",
          "values"]
 vals = []

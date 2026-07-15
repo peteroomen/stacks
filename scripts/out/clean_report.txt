@@ -1,5 +1,5 @@
 Rows: 900 raw -> 696 real (204 empty trailing rows dropped)
-De-dupe on (artist,title,year): 696 -> 694 (2 dupes removed)
+De-dupe on (artist,title,year): 696 -> 694 (2 dupes removed); 694 -> 692 (2 empty-title rows dropped)
 
 == Parent genre distribution ==
   Rock           208
@@ -12,7 +12,7 @@ De-dupe on (artist,title,year): 696 -> 694 (2 dupes removed)
   Electronic     32
   Jazz           24
   Country        12
-  Unknown        8
+  Unknown        6
   Reggae / Dub   5
   Soundtrack     4
   World          2
