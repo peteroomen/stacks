@@ -62,6 +62,24 @@ async function caaFront(mbid) {
   return front.thumbnails?.["500"] ?? front.thumbnails?.large ?? front.image;
 }
 
+// Fuzzy fallback: Deezer album search — fast, not rate-limited, and forgiving of
+// typos ("Paul's Botique"). Its albums carry cover art directly.
+async function deezerCover(artist, title) {
+  const q = `artist:"${normalizeArtist(artist).replace(/"/g, " ")}" album:"${title.replace(/"/g, " ")}"`;
+  const res = await fetch(`https://api.deezer.com/search/album?q=${encodeURIComponent(q)}&limit=5`, { headers: { "User-Agent": UA } });
+  if (!res.ok) return null;
+  const d = await res.json();
+  if (d?.error) return null;
+  const results = d.data ?? [];
+  if (!results.length) return null;
+  const ourTokens = norm(`${normalizeArtist(artist)} ${title}`).split(" ").filter((t) => t.length >= 4);
+  const pick = results.find((r) => {
+    const theirs = norm(`${r.artist?.name ?? ""} ${r.title ?? ""}`);
+    return ourTokens.some((t) => theirs.includes(t));
+  }) ?? results[0];
+  return pick?.cover_xl ?? pick?.cover_big ?? pick?.cover_medium ?? null;
+}
+
 // Fuzzy fallback: iTunes Search. Forgiving of spelling (Rumors/Rumours),
 // word order (handles swapped artist/title), and bracket junk. Guards against
 // junk matches by requiring a shared significant token.
@@ -103,6 +121,7 @@ for (let i = 0; i < albums.length; i++) {
     let mbid = await mbReleaseGroup(a.artist, a.title);
     let cover = mbid ? await caaFront(mbid) : null;
     let src = cover ? "caa" : "";
+    if (!cover) { cover = await deezerCover(a.artist, a.title); if (cover) src = "deezer"; }
     if (!cover) { cover = await itunesCover(a.artist, a.title); if (cover) { src = "itunes"; mbid = null; } }
     if (!cover) { console.log(`  ✗ no cover  ${tag}`); missed++; await sleep(1100); continue; }
     const { error: upErr } = await supabase
