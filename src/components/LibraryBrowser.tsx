@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Album, AlbumFilters } from "@/lib/types";
 import { ytMusicUrl } from "@/lib/yt";
 import AlbumDrawer from "./AlbumDrawer";
@@ -15,6 +15,11 @@ const PAGE_SIZE = 48;
 const DEFAULT_SORT = "rating.desc";
 const defaultFilters = (): AlbumFilters => ({ sort: DEFAULT_SORT, page: 1, pageSize: PAGE_SIZE });
 
+// Table columns that map onto the API's sortable fields.
+const SORTABLE: Record<string, string> = {
+  Artist: "artist", Year: "year", Rating: "rating", Plays: "listen_count",
+};
+
 export default function LibraryBrowser({ facets }: { facets: Facets }) {
   const [f, setF] = useState<AlbumFilters>(defaultFilters);
   // Bumped on reset to remount the uncontrolled filter inputs so they clear.
@@ -23,7 +28,18 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
   const [albums, setAlbums] = useState<Album[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<Album | null>(null);
+  const [retryTick, setRetryTick] = useState(0);
+  const topRef = useRef<HTMLDivElement>(null);
+
+  // Debounce the free-text search so we don't fire a request per keystroke.
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setSearch = (value: string) => {
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => set({ q: value || undefined }), 300);
+  };
+  useEffect(() => () => { if (searchTimer.current) clearTimeout(searchTimer.current); }, []);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams();
@@ -34,15 +50,25 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
   useEffect(() => {
     let cancel = false;
     setLoading(true);
+    setError(null);
     fetch(`/api/albums?${qs}`)
-      .then((r) => r.json())
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error ?? `Request failed (${r.status})`);
+        return d;
+      })
       .then((d) => { if (!cancel) { setAlbums(d.albums ?? []); setTotal(d.total ?? 0); } })
+      .catch((e) => { if (!cancel) { setAlbums([]); setTotal(0); setError(e.message); } })
       .finally(() => !cancel && setLoading(false));
     return () => { cancel = true; };
-  }, [qs]);
+  }, [qs, retryTick]);
 
   const set = (patch: Partial<AlbumFilters>) => setF((p) => ({ ...p, ...patch, page: 1 }));
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const goPage = (page: number) => {
+    setF((p) => ({ ...p, page }));
+    topRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const filtersActive =
     !!f.q || !!f.parent || !!f.collection || f.ratingMin != null || !!f.unratedOnly || f.sort !== DEFAULT_SORT;
@@ -51,8 +77,18 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
     setFormKey((k) => k + 1);
   };
 
+  const toggleSort = (col: string) => {
+    const [curCol, curDir] = (f.sort ?? DEFAULT_SORT).split(".");
+    const dir = curCol === col && curDir === "desc" ? "asc" : "desc";
+    setF((p) => ({ ...p, sort: `${col}.${dir}`, page: 1 }));
+  };
+  const sortIndicator = (col: string) => {
+    const [curCol, curDir] = (f.sort ?? DEFAULT_SORT).split(".");
+    return curCol === col ? (curDir === "asc" ? " ▲" : " ▼") : "";
+  };
+
   return (
-    <div className="space-y-5">
+    <div ref={topRef} className="space-y-5 scroll-mt-20">
       <header className="flex items-end justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-black tracking-tight">Library</h1>
@@ -74,7 +110,7 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
         <div key={formKey} className="card-body p-4 gap-3">
           <input className="input input-bordered input-sm w-full"
             placeholder="Search artist, title, or your notes…"
-            onChange={(e) => set({ q: e.target.value || undefined })} />
+            onChange={(e) => setSearch(e.target.value)} />
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <select className="select select-bordered select-sm sm:w-40"
               onChange={(e) => set({ parent: e.target.value || undefined })}>
@@ -121,6 +157,22 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
       {/* Results */}
       {loading ? (
         <div className="flex justify-center py-16"><span className="loading loading-dots loading-lg" /></div>
+      ) : error ? (
+        <div className="card bg-base-200/40 border border-error/30">
+          <div className="card-body items-center text-center py-10 gap-3">
+            <p className="text-error text-sm">Couldn’t load albums: {error}</p>
+            <button className="btn btn-sm btn-outline" onClick={() => setRetryTick((t) => t + 1)}>Retry</button>
+          </div>
+        </div>
+      ) : albums.length === 0 ? (
+        <div className="card bg-base-200/40 border border-base-content/10">
+          <div className="card-body items-center text-center py-12 gap-3">
+            <p className="text-base-content/60">No albums match these filters.</p>
+            {filtersActive && (
+              <button className="btn btn-sm btn-outline" onClick={resetFilters}>Reset filters</button>
+            )}
+          </div>
+        </div>
       ) : view === "grid" ? (
         <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
           {albums.map((a) => (
@@ -138,8 +190,24 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
         <div className="overflow-x-auto card bg-base-200/40 border border-base-content/10">
           <table className="table table-sm table-zebra">
             <thead>
-              <tr><th className="w-10"></th><th>Artist</th><th>Title</th><th>Year</th><th>Genre</th>
-                <th className="text-right">Rating</th><th className="text-right">Plays</th><th></th></tr>
+              <tr>
+                <th className="w-10"></th>
+                {(["Artist", "Title", "Year", "Genre", "Rating", "Plays"] as const).map((h) => {
+                  const col = SORTABLE[h];
+                  const right = h === "Rating" || h === "Plays";
+                  return col ? (
+                    <th key={h}
+                      className={`cursor-pointer select-none hover:text-primary ${right ? "text-right" : ""}`}
+                      onClick={() => toggleSort(col)}
+                      title={`Sort by ${h.toLowerCase()}`}>
+                      {h}{sortIndicator(col)}
+                    </th>
+                  ) : (
+                    <th key={h} className={right ? "text-right" : ""}>{h}</th>
+                  );
+                })}
+                <th></th>
+              </tr>
             </thead>
             <tbody>
               {albums.map((a) => (
@@ -164,14 +232,14 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
       )}
 
       {/* Pagination */}
-      {pages > 1 && (
+      {pages > 1 && !error && (
         <div className="flex justify-center join">
           <button className="join-item btn btn-sm" disabled={f.page === 1}
-            onClick={() => setF((p) => ({ ...p, page: (p.page ?? 1) - 1 }))}>«</button>
+            onClick={() => goPage((f.page ?? 1) - 1)}>«</button>
           <button className="join-item btn btn-sm btn-ghost pointer-events-none">
             {f.page} / {pages}</button>
           <button className="join-item btn btn-sm" disabled={(f.page ?? 1) >= pages}
-            onClick={() => setF((p) => ({ ...p, page: (p.page ?? 1) + 1 }))}>»</button>
+            onClick={() => goPage((f.page ?? 1) + 1)}>»</button>
         </div>
       )}
 
@@ -184,7 +252,7 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
 function Thumb({ album }: { album: Album }) {
   return album.cover_art_url ? (
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={album.cover_art_url} alt="" className="w-9 h-9 rounded object-cover" />
+    <img src={album.cover_art_url} alt="" loading="lazy" className="w-9 h-9 rounded object-cover" />
   ) : (
     <div className="cover-fallback w-9 h-9 rounded flex items-center justify-center text-[10px] rating-num text-base-content/60">
       {album.rating ?? ""}
@@ -197,7 +265,7 @@ function Cover({ album }: { album: Album }) {
     <div className="relative">
       {album.cover_art_url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={album.cover_art_url} alt={album.title}
+        <img src={album.cover_art_url} alt={album.title} loading="lazy"
           className="aspect-square w-full rounded-md object-cover shadow-md
                      group-hover:ring-2 ring-primary transition" />
       ) : (

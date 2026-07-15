@@ -16,11 +16,13 @@ export default function AlbumDrawer({
   const [rating, setRating] = useState<string>("");
   const [comments, setComments] = useState<string>("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [tracks, setTracks] = useState<Track[] | null>(null);
 
   useEffect(() => {
     setRating(album?.rating != null ? String(album.rating) : "");
     setComments(album?.comments ?? "");
+    setError(null);
   }, [album]);
 
   useEffect(() => {
@@ -34,30 +36,56 @@ export default function AlbumDrawer({
     return () => { cancel = true; };
   }, [album]);
 
+  // Escape closes the drawer (unless focus is in a field mid-edit).
+  useEffect(() => {
+    if (!album) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      const el = e.target as HTMLElement;
+      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") { el.blur(); return; }
+      onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [album, onClose]);
+
   if (!album) return null;
 
   async function save() {
     setSaving(true);
-    const res = await fetch("/api/albums", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        id: album!.id,
-        rating: rating === "" ? null : Number(rating),
-        comments: comments || null,
-      }),
-    });
-    const d = await res.json();
-    setSaving(false);
-    if (d.album) { onSaved(d.album); onClose(); }
+    setError(null);
+    try {
+      const res = await fetch("/api/albums", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: album!.id,
+          rating: rating === "" ? null : Number(rating),
+          comments: comments || null,
+        }),
+      });
+      const d = await res.json();
+      if (!res.ok || !d.album) throw new Error(d.error ?? "Save failed");
+      onSaved(d.album);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function persistTrack(id: string, rating: number | null) {
-    await fetch("/api/tracks", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, rating }),
-    });
+    try {
+      const res = await fetch("/api/tracks", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, rating }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Track save failed");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Track save failed");
+    }
   }
 
   const ratedTracks = (tracks ?? []).filter((t) => t.rating != null);
@@ -125,6 +153,10 @@ export default function AlbumDrawer({
             onChange={(e) => setComments(e.target.value)}
             placeholder="What did you make of it?" />
         </label>
+
+        {error && (
+          <p className="text-error text-sm" role="alert">{error}</p>
+        )}
 
         <button className="btn btn-primary w-full" onClick={save} disabled={saving}>
           {saving ? <span className="loading loading-spinner loading-sm" /> : "Save changes"}

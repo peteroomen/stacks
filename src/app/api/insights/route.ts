@@ -48,6 +48,7 @@ ${JSON.stringify(digest)}`;
   const rows = Object.entries(parsed).map(([kind, payload]) => ({
     owner_id: owner, kind, payload, generated_at: new Date().toISOString(),
   }));
-  await supabase.from("insights").upsert(rows, { onConflict: "owner_id,kind" });
+  const { error } = await supabase.from("insights").upsert(rows, { onConflict: "owner_id,kind" });
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ insights: rows });
 }

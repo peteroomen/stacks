@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase/server";
 
 // GET /api/tracks?album_id=<uuid>  -> tracklist for an album (RLS-scoped to owner)
@@ -18,15 +19,19 @@ export async function GET(req: Request) {
   return NextResponse.json({ tracks: data ?? [] });
 }
 
+const patchSchema = z.object({
+  id: z.string().uuid(),
+  rating: z.number().min(0).max(10).nullable().optional(),
+  comments: z.string().max(10_000).nullable().optional(),
+});
+
 // PATCH /api/tracks  { id, rating?, comments? } — rate/note a single track
 export async function PATCH(req: Request) {
-  const body = await req.json();
-  const { id, ...patch } = body ?? {};
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
-
-  const allowed = ["rating", "comments"];
-  const clean = Object.fromEntries(Object.entries(patch).filter(([k]) => allowed.includes(k)));
-
+  const parsed = patchSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "invalid body" }, { status: 400 });
+  }
+  const { id, ...clean } = parsed.data;
   const supabase = await supabaseServer();
   const { data, error } = await supabase.from("tracks").update(clean).eq("id", id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
