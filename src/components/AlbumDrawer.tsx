@@ -52,6 +52,22 @@ export default function AlbumDrawer({
     if (d.album) { onSaved(d.album); onClose(); }
   }
 
+  async function persistTrack(id: string, rating: number | null) {
+    await fetch("/api/tracks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, rating }),
+    });
+  }
+
+  const ratedTracks = (tracks ?? []).filter((t) => t.rating != null);
+  const avgTrack = ratedTracks.length
+    ? ratedTracks.reduce((s, t) => s + (t.rating ?? 0), 0) / ratedTracks.length
+    : null;
+  const topId = ratedTracks.length
+    ? ratedTracks.reduce((a, b) => ((b.rating ?? 0) > (a.rating ?? 0) ? b : a)).id
+    : null;
+
   return (
     <div className="fixed inset-0 z-40 flex items-end sm:items-stretch sm:justify-end" onClick={onClose}>
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
@@ -117,24 +133,33 @@ export default function AlbumDrawer({
           <div className="pt-1">
             <div className="divider my-1 text-xs text-base-content/40">
               {tracks.length} tracks
+              {avgTrack != null && <> · avg <span className="rating-num text-base-content/60">{avgTrack.toFixed(1)}</span></>}
             </div>
             <ol className="text-sm divide-y divide-base-content/5">
               {tracks.map((t) => (
-                <li key={t.id} className="flex items-center gap-3 py-1.5">
+                <li key={t.id} className="flex items-center gap-2 py-1">
                   <span className="w-5 text-right text-xs text-base-content/40 rating-num shrink-0">
                     {t.track_no ?? "•"}
                   </span>
-                  <span className="flex-1 truncate">{t.title}</span>
+                  <span className="flex-1 truncate">
+                    {t.title}
+                    {t.id === topId && <span className="ml-1 text-primary" title="Top-rated track">★</span>}
+                  </span>
                   {t.play_count > 0 && (
-                    <span className="text-xs text-base-content/50 rating-num shrink-0">
-                      {t.play_count}▶
-                    </span>
+                    <span className="text-xs text-base-content/50 rating-num shrink-0">{t.play_count}▶</span>
                   )}
                   {t.duration_ms != null && (
-                    <span className="text-xs text-base-content/40 rating-num shrink-0 w-9 text-right">
+                    <span className="text-xs text-base-content/40 rating-num shrink-0 w-9 text-right hidden sm:inline">
                       {fmtDur(t.duration_ms)}
                     </span>
                   )}
+                  <input type="number" min={0} max={10} step={0.5} placeholder="—"
+                    className="input input-xs input-bordered w-14 rating-num text-right shrink-0"
+                    value={t.rating ?? ""}
+                    onChange={(e) => setTracks((ts) => ts?.map((x) => (x.id === t.id
+                      ? { ...x, rating: e.target.value === "" ? null : Number(e.target.value) } : x)) ?? null)}
+                    onBlur={(e) => persistTrack(t.id, e.target.value === "" ? null : Number(e.target.value))}
+                    onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} />
                 </li>
               ))}
             </ol>
