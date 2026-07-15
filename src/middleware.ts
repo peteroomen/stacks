@@ -51,6 +51,8 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Run on everything except Next internals and static assets.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // Run on pages only. Exclude Next internals, static assets, and — importantly —
+  // /api and /auth, which handle their own auth (and the /auth/callback route must
+  // set session cookies without middleware interference).
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api|auth|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };
