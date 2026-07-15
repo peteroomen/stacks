@@ -17,3 +17,18 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ tracks: data ?? [] });
 }
+
+// PATCH /api/tracks  { id, rating?, comments? } — rate/note a single track
+export async function PATCH(req: Request) {
+  const body = await req.json();
+  const { id, ...patch } = body ?? {};
+  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+
+  const allowed = ["rating", "comments"];
+  const clean = Object.fromEntries(Object.entries(patch).filter(([k]) => allowed.includes(k)));
+
+  const supabase = await supabaseServer();
+  const { data, error } = await supabase.from("tracks").update(clean).eq("id", id).select().single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ track: data });
+}
