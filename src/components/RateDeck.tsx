@@ -13,6 +13,7 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
   const [note, setNote] = useState("");
   const [collection, setCollection] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [rated, setRated] = useState(0);
 
   const album = queue[i];
@@ -25,7 +26,7 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
   }, []);
 
   // load fields when the card changes
-  useEffect(() => { reset(queue[i]); }, [i, queue, reset]);
+  useEffect(() => { reset(queue[i]); setError(null); }, [i, queue, reset]);
 
   // preload the next few covers so advancing swaps the art instantly
   useEffect(() => {
@@ -36,12 +37,14 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
   }, [i, queue]);
 
   const advance = useCallback(() => setI((n) => n + 1), []);
+  const back = useCallback(() => setI((n) => Math.max(0, n - 1)), []);
 
   const save = useCallback(async () => {
     if (!album || rating == null || saving) return;
     setSaving(true);
+    setError(null);
     try {
-      await fetch("/api/albums", {
+      const res = await fetch("/api/albums", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -51,8 +54,14 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
           collection_status: collection || null,
         }),
       });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? `Save failed (${res.status})`);
+      }
       setRated((n) => n + 1);
       advance();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
     }
@@ -69,10 +78,11 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
       else if (e.key === "ArrowUp") setRating((r) => Math.min(10, (r ?? 0) + 0.5));
       else if (e.key === "ArrowDown") setRating((r) => Math.max(0, (r ?? 0) - 0.5));
       else if (e.key === "ArrowRight") advance();
+      else if (e.key === "ArrowLeft") back();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [save, advance]);
+  }, [save, advance, back]);
 
   if (done) {
     return (
@@ -150,7 +160,11 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
             className="textarea textarea-bordered w-full min-h-20 text-sm"
             placeholder="Your notes… (⌘/Ctrl+Enter to save)" />
 
+          {error && <p className="text-error text-sm" role="alert">{error}</p>}
+
           <div className="flex gap-2 w-full">
+            <button onClick={back} className="btn btn-ghost" disabled={saving || i === 0}
+              title="Back to previous album">←</button>
             <button onClick={advance} className="btn btn-ghost flex-1" disabled={saving}>Skip →</button>
             <button onClick={save} className="btn btn-primary flex-1" disabled={rating == null || saving}>
               {saving ? <span className="loading loading-spinner loading-sm" /> : "Save & next"}
@@ -162,7 +176,7 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
       <p className="text-center text-xs text-base-content/40">
         Keys: <kbd className="kbd kbd-xs">1</kbd>–<kbd className="kbd kbd-xs">9</kbd>,{" "}
         <kbd className="kbd kbd-xs">0</kbd>=10, <kbd className="kbd kbd-xs">↑</kbd>/<kbd className="kbd kbd-xs">↓</kbd> ½,{" "}
-        <kbd className="kbd kbd-xs">↵</kbd> save, <kbd className="kbd kbd-xs">→</kbd> skip
+        <kbd className="kbd kbd-xs">↵</kbd> save, <kbd className="kbd kbd-xs">→</kbd> skip, <kbd className="kbd kbd-xs">←</kbd> back
       </p>
     </div>
   );

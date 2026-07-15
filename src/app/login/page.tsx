@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabaseBrowser } from "@/lib/supabase/client";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [message, setMessage] = useState("");
+
+  // Surface a failed magic-link / OAuth callback (it redirects here with ?error=auth).
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("error") === "auth") {
+      setStatus("error");
+      setMessage("Sign-in link didn’t work — it may have expired. Try again.");
+    }
+  }, []);
 
   const redirectTo =
     typeof window !== "undefined" ? `${window.location.origin}/auth/callback` : undefined;

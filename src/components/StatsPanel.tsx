@@ -26,10 +26,13 @@ export default function StatsPanel({ albums }: { albums: Album[] }) {
     .slice(0, 10);
 
   const ratings = albums.map((a) => a.rating).filter((r): r is number => r != null);
+  // Buckets span 4–10 by default but extend down to the lowest actual rating,
+  // so nothing is silently dropped from the histogram.
+  const lowest = ratings.length ? Math.min(4, Math.floor(Math.min(...ratings) * 2) / 2) : 4;
   const buckets: Record<string, number> = {};
-  for (let b = 4; b <= 10; b += 0.5) buckets[b.toFixed(1)] = 0;
+  for (let b = lowest; b <= 10; b += 0.5) buckets[b.toFixed(1)] = 0;
   ratings.forEach((r) => {
-    const k = (Math.round(r * 2) / 2).toFixed(1);
+    const k = Math.min(10, Math.max(lowest, Math.round(r * 2) / 2)).toFixed(1);
     if (k in buckets) buckets[k]++;
   });
   const ratingData = Object.entries(buckets).map(([name, value]) => ({ name, value }));

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase/server";
 
 // GET /api/albums?q=&parent=&genre=&yearMin=&yearMax=&ratingMin=&ratingMax=
@@ -15,7 +16,17 @@ export async function GET(req: Request) {
   let query = supabase.from("albums").select("*", { count: "exact" });
 
   const q = sp.get("q");
-  if (q) query = query.or(`artist.ilike.%${q}%,title.ilike.%${q}%,comments.ilike.%${q}%`);
+  if (q) {
+    // PostgREST's .or() syntax treats , ( ) as structure and " \ as quoting, so
+    // a search like `(What's the Story)` would 400 unless the value is quoted
+    // and stripped of quote characters.
+    const safe = q.replace(/[\\"]/g, " ").trim();
+    if (safe) {
+      query = query.or(
+        `artist.ilike."%${safe}%",title.ilike."%${safe}%",comments.ilike."%${safe}%"`
+      );
+    }
+  }
 
   const eqFilters: [string, string | null][] = [
     ["genre_parent", sp.get("parent")],
@@ -44,14 +55,21 @@ export async function GET(req: Request) {
   return NextResponse.json({ albums: data, total: count ?? 0, page, pageSize });
 }
 
+const patchSchema = z.object({
+  id: z.string().uuid(),
+  rating: z.number().min(0).max(10).nullable().optional(),
+  comments: z.string().max(10_000).nullable().optional(),
+  collection_status: z.string().max(100).nullable().optional(),
+});
+
 // PATCH /api/albums  { id, rating?, comments?, collection_status? }  — inline edits
 export async function PATCH(req: Request) {
-  const body = await req.json();
-  const { id, ...patch } = body ?? {};
-  if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  const parsed = patchSchema.safeParse(await req.json().catch(() => null));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "invalid body" }, { status: 400 });
+  }
+  const { id, ...clean } = parsed.data;
   const supabase = await supabaseServer();
-  const allowed = ["rating", "comments", "collection_status"];
-  const clean = Object.fromEntries(Object.entries(patch).filter(([k]) => allowed.includes(k)));
   const { data, error } = await supabase.from("albums").update(clean).eq("id", id).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ album: data });

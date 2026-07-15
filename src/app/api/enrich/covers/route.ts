@@ -86,8 +86,9 @@ async function itunesCover(artist: string, title: string): Promise<string | null
 }
 
 export async function GET(req: Request) {
+  // Fail closed: without a configured secret this endpoint stays locked.
   const auth = req.headers.get("authorization");
-  if (process.env.CRON_SECRET && auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (!process.env.CRON_SECRET || auth !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   if (!OWNER_ID) return NextResponse.json({ error: "OWNER_USER_ID not set" }, { status: 400 });

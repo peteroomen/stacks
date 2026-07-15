@@ -28,9 +28,7 @@ export function buildLibraryDigest(albums: Album[]) {
     .slice(0, 25);
 
   // A sample of your actual notes so the model hears your voice
-  const commentSample = albums
-    .filter((a) => a.comments)
-    .sort(() => Math.random() - 0.5)
+  const commentSample = shuffle(albums.filter((a) => a.comments))
     .slice(0, 20)
     .map((a) => `${a.artist} — ${a.title} [${a.rating ?? "?"}]: "${trim(a.comments!)}"`);
 
@@ -59,6 +57,15 @@ function tally(xs: string[]) {
   const m: Record<string, number> = {};
   for (const x of xs) m[x] = (m[x] ?? 0) + 1;
   return m;
+}
+// Fisher–Yates; the sort(() => Math.random() - 0.5) trick is badly biased.
+function shuffle<T>(xs: T[]): T[] {
+  const a = [...xs];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 const round = (n: number) => Math.round(n * 10) / 10;
 const trim = (s: string) => (s.length > 140 ? s.slice(0, 137) + "…" : s);

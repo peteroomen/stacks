@@ -16,17 +16,18 @@ TanStack-free table (daisyUI `table`) · Recharts.
 |---|---|
 | Data cleanup + normalization + parent-genre mapping | ✅ done (`scripts/clean_and_seed.py`) |
 | Seed: 694 albums from your CSV (`scripts/out/seed.sql`) | ✅ generated, idempotent |
-| Schema + RLS + indexes + rollup fn (`supabase/migrations/0001_init.sql`) | ✅ done |
+| Schema + RLS + indexes + rollup fns (`supabase/migrations/`) | ✅ done |
 | Library view — grid/table, search, filters, sort, pagination, detail drawer, inline edit | ✅ done |
-| Dashboard — stats (genre + rating charts), insight cards, chat | ✅ done |
+| Dashboard — stats, recently played, insight cards, chat | ✅ done |
 | AI insight cards (revisit queue / blind spots / recent run / recs), cached | ✅ done (needs key) |
 | AI chat grounded in library digest | ✅ done (needs key) |
-| ListenBrainz ingestion cron + rollup | ✅ done (needs username) |
-| Cover-art enrichment (Cover Art Archive / MusicBrainz) | ⏳ TODO — see Roadmap |
-| Google Takeout historical backfill parser | ⏳ TODO |
-| "Wrapped" year-in-review + CSV export | ⏳ TODO |
+| ListenBrainz ingestion cron + album/track rollup | ✅ done (needs username) |
+| Cover-art enrichment (CAA → Deezer → iTunes), cron + backfill script | ✅ done |
+| Google Takeout historical backfill (`scripts/import_takeout.mjs`) | ✅ done |
+| Tracklists + per-track ratings + per-track play counts | ✅ done |
+| "Wrapped" year-in-review + CSV export | ⏳ roadmap |
 
-The ⏳ items are the finish-line pass — the app runs and is fully usable without them.
+See `docs/work/2026-07-15-audit.md` for the full audit + roadmap.
 
 ---
 
@@ -42,27 +43,32 @@ npm run dev
 
 1. **Create the Supabase project** (new). Grab the project URL, `anon` key, and
    `service_role` key into env vars.
-2. **Run the migration:** `supabase db push` (or paste `0001_init.sql` into the SQL editor).
+2. **Run the migrations:** `supabase db push` (or paste `supabase/migrations/*.sql`
+   into the SQL editor, in order).
 3. **Create your auth user** (email allow-list = just you), then copy your user `uuid`
    into `OWNER_USER_ID`.
-4. **Seed:** the generated `seed.sql` has no `owner_id`. Set it in one line first:
-   ```sql
-   -- in Supabase SQL editor, after creating your user:
-   \set owner 'YOUR-AUTH-UUID'
-   -- then run seed with owner filled in (see scripts/seed_with_owner.sql helper)
-   ```
-   Or use the helper: `python scripts/stamp_owner.py <uuid>` → writes `seed_owned.sql`.
+4. **Seed:** `python scripts/stamp_owner.py <uuid>` → writes `seed_owned.sql`; run it
+   in the SQL editor.
 5. **Push to GitHub**, import to **Vercel**, set all env vars, deploy.
-6. **Cron** is configured in `vercel.json` (every 4h). Set `CRON_SECRET`.
+6. **Cron** is configured in `vercel.json` (ingest daily 08:00 UTC, covers 08:30).
+   Set `CRON_SECRET` — the cron endpoints refuse all requests until it is set.
 7. **Web Scrobbler** → point it at ListenBrainz with your user token so plays start flowing.
 
-## Roadmap (the ⏳ items)
+## Pipeline scripts (one-off / backfill)
 
-- **Enrichment job:** for each album lacking `cover_art_url`, query MusicBrainz for the
-  release-group `mbid`, then Cover Art Archive for the front cover. Store both. Run as a
-  one-off script + on new scrobbles.
-- **Takeout backfill:** parse `watch-history.json` from Google Takeout (YT + YT Music),
-  filter to music, fuzzy-match to albums, seed `plays` with real historical timestamps.
-- **Wrapped:** LLM-written annual recap from `plays` + ratings (same pattern as the
-  budgeting app's monthly recap).
+All read `.env.local` (Node ≥ 20.6): `node --env-file=.env.local scripts/<name>.mjs`
+
+- `enrich_covers.mjs` — bulk cover-art backfill (CAA → Deezer → iTunes). The cron
+  route keeps new albums topped up afterwards.
+- `import_takeout.mjs <watch-history.html>` — YT Music history → sessionized album
+  spins + plays timeline. Dry-run by default; `--apply` to commit.
+- `enrich_tracks.mjs` — tracklists per album (Deezer, MusicBrainz fallback).
+- `attribute_track_plays.mjs` — link imported plays to tracks, roll up per-track
+  play counts. Requires migration `0005` (fixes the `link_plays_to_tracks` RPC).
+
+## Roadmap
+
+- **Wrapped:** LLM-written annual recap from `plays` + ratings.
 - **Export:** CSV round-trip so the data is never trapped.
+- More in `docs/work/2026-07-15-audit.md` (listening timeline, spin-sessionized
+  counts for scrobbles, URL-synced filters, genre drill-down, and more).
