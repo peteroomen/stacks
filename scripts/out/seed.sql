@@ -688,12 +688,10 @@ values
   ('Flume','Hi This Is Flume','Album',2019,'Wonky','Hip Hop',2,7.0,'Pretty damn enjoyable, love the SOPHIE infulence, and confluence of various electronic music styles',NULL,'71971649365ec5d3','csv'),
   ('Brian Eno','Another Green World','Album',NULL,NULL,'Unknown',0,NULL,NULL,NULL,'358e556aca391dc0','csv'),
   ('Burial','Untrue','Album',NULL,NULL,'Unknown',0,NULL,NULL,NULL,'82bf01558275727b','csv'),
-  ('Denzel Curry',NULL,NULL,NULL,NULL,'Unknown',0,NULL,NULL,NULL,'201bae9ceaa59026','csv'),
   ('Faith No More','Angel Dust','Album',NULL,NULL,'Unknown',0,NULL,NULL,NULL,'8fe83d9929c8e821','csv'),
   ('Mercury Rev','Deserter''s Songs',NULL,NULL,NULL,'Unknown',0,NULL,NULL,NULL,'f167c12b9a1f03e8','csv'),
   ('Modest Mouse','The Moon and Antarctica','Album',NULL,NULL,'Unknown',0,NULL,NULL,NULL,'a7e675ec490eb563','csv'),
   ('Monster Magnet','Dopes to Infinity',NULL,NULL,NULL,'Unknown',0,NULL,NULL,NULL,'5061c88ec26b59d2','csv'),
-  ('Stooges, The',NULL,NULL,NULL,NULL,'Unknown',0,NULL,NULL,NULL,'e7b73f118e7b0af6','csv'),
   ('Richard and Linda Thompson','Shoot Out the Lights','Album',1982,'Folk Rock','Folk',1,8.5,'Liked it a lot, might rise with more listens. Claude recommended it. It''s a lot like Neil Young, quite country rock, enjoyed the male and female voices. Underrated guitarist, I want to learn so much of this',NULL,'92ea9584e984ee47','csv'),
   ('Wipers','Youth of America','Album',1981,'Post-Punk','Punk',1,8.0,'Really strong at points, good length. Need more listens to absorb',NULL,'70077cc211dbfe28','csv'),
   ('Unwound','Leaves Turn Inside You','Album',2001,'Indie Rock','Rock',1,8.5,'Really creative and different, need some more listens to really understand this one',NULL,'b4b2ec53d7a19792','csv')
