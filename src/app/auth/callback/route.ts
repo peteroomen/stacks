@@ -16,16 +16,6 @@ export async function GET(request: NextRequest) {
   const tokenHash = searchParams.get("token_hash");
   const type = searchParams.get("type") as EmailOtpType | null;
 
-  // --- diagnostics (temporary) ---
-  const cookieNames = request.cookies.getAll().map((c) => c.name);
-  console.log("[auth/callback] incoming", {
-    hasCode: !!code,
-    hasTokenHash: !!tokenHash,
-    type,
-    cookieNames,
-    hasVerifier: cookieNames.some((n) => n.includes("code-verifier") || n.includes("auth-token")),
-  });
-
   const success = NextResponse.redirect(`${origin}${next}`);
 
   const supabase = createServerClient(
@@ -44,13 +34,9 @@ export async function GET(request: NextRequest) {
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) return success;
-    console.error("[auth/callback] exchangeCodeForSession failed:", error.status, error.message);
   } else if (tokenHash && type) {
     const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
     if (!error) return success;
-    console.error("[auth/callback] verifyOtp failed:", error.status, error.message);
-  } else {
-    console.error("[auth/callback] no code or token_hash present");
   }
 
   return NextResponse.redirect(`${origin}/login?error=auth`);
