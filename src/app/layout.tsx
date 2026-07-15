@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import Link from "next/link";
+import { supabaseServer } from "@/lib/supabase/server";
 
 export const metadata: Metadata = {
   title: "Stacks — album listening tracker",
@@ -14,7 +15,12 @@ export const viewport: Viewport = {
   themeColor: "#0a1520",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const supabase = await supabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <html lang="en" data-theme="abyss">
       <body className="min-h-screen">
@@ -24,10 +30,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               stacks<span className="text-primary">.</span>
             </Link>
           </div>
-          <nav className="flex gap-1">
-            <Link href="/" className="btn btn-ghost btn-sm">Dashboard</Link>
-            <Link href="/library" className="btn btn-ghost btn-sm">Library</Link>
-          </nav>
+          {user && (
+            <nav className="flex items-center gap-1">
+              <Link href="/" className="btn btn-ghost btn-sm">
+                Dashboard
+              </Link>
+              <Link href="/library" className="btn btn-ghost btn-sm">
+                Library
+              </Link>
+              <form action="/auth/signout" method="post">
+                <button type="submit" className="btn btn-ghost btn-sm text-base-content/60">
+                  Sign out
+                </button>
+              </form>
+            </nav>
+          )}
         </div>
         <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">{children}</main>
       </body>
