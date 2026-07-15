@@ -3,7 +3,7 @@ import "./globals.css";
 import Link from "next/link";
 import { supabaseServer } from "@/lib/supabase/server";
 import { Vinyl } from "@/components/Vinyl";
-import NavLinks from "@/components/NavLinks";
+import HeaderNav from "@/components/HeaderNav";
 
 export const metadata: Metadata = {
   title: "Stacks — album listening tracker",
@@ -32,19 +32,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               stacks<Vinyl />
             </Link>
           </div>
-          {user && (
-            <nav className="flex items-center gap-1">
-              <NavLinks />
-              <form action="/auth/signout" method="post">
-                <button
-                  type="submit"
-                  className="btn btn-ghost btn-sm rounded-lg text-base-content/60 transition-colors hover:bg-error/15 hover:text-error"
-                >
-                  Sign out
-                </button>
-              </form>
-            </nav>
-          )}
+          {user && <HeaderNav />}
         </div>
         <main className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">{children}</main>
       </body>

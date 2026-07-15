@@ -12,9 +12,13 @@ type Facets = {
 };
 
 const PAGE_SIZE = 48;
+const DEFAULT_SORT = "rating.desc";
+const defaultFilters = (): AlbumFilters => ({ sort: DEFAULT_SORT, page: 1, pageSize: PAGE_SIZE });
 
 export default function LibraryBrowser({ facets }: { facets: Facets }) {
-  const [f, setF] = useState<AlbumFilters>({ sort: "rating.desc", page: 1, pageSize: PAGE_SIZE });
+  const [f, setF] = useState<AlbumFilters>(defaultFilters);
+  // Bumped on reset to remount the uncontrolled filter inputs so they clear.
+  const [formKey, setFormKey] = useState(0);
   const [view, setView] = useState<"grid" | "table">("grid");
   const [albums, setAlbums] = useState<Album[]>([]);
   const [total, setTotal] = useState(0);
@@ -40,6 +44,13 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
   const set = (patch: Partial<AlbumFilters>) => setF((p) => ({ ...p, ...patch, page: 1 }));
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  const filtersActive =
+    !!f.q || !!f.parent || !!f.collection || f.ratingMin != null || !!f.unratedOnly || f.sort !== DEFAULT_SORT;
+  const resetFilters = () => {
+    setF(defaultFilters());
+    setFormKey((k) => k + 1);
+  };
+
   return (
     <div className="space-y-5">
       <header className="flex items-end justify-between gap-4 flex-wrap">
@@ -59,7 +70,8 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
 
       {/* Filter bar — stacks on mobile, lays out horizontally on desktop */}
       <div className="card bg-base-200/50 border border-base-content/10">
-        <div className="card-body p-4 gap-3">
+        {/* key remounts the uncontrolled inputs when the filters are reset */}
+        <div key={formKey} className="card-body p-4 gap-3">
           <input className="input input-bordered input-sm w-full"
             placeholder="Search artist, title, or your notes…"
             onChange={(e) => set({ q: e.target.value || undefined })} />
@@ -96,6 +108,12 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
                 onChange={(e) => set({ unratedOnly: e.target.checked || undefined })} />
               Unrated only
             </label>
+            {filtersActive && (
+              <button type="button" onClick={resetFilters}
+                className="btn btn-ghost btn-sm rounded-lg text-base-content/60 hover:text-primary whitespace-nowrap">
+                ✕ Reset
+              </button>
+            )}
           </div>
         </div>
       </div>
