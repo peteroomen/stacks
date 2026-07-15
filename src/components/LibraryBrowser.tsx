@@ -47,26 +47,26 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
             {loading ? "…" : `${total} of ${facets.total} albums`}
           </p>
         </div>
-        <div className="join">
-          <button className={`btn btn-sm join-item ${view === "grid" ? "btn-primary" : "btn-ghost"}`}
+        <div className="join border border-base-content/10">
+          <button className={`btn btn-sm join-item ${view === "grid" ? "btn-primary" : "btn-neutral"}`}
             onClick={() => setView("grid")}>Grid</button>
-          <button className={`btn btn-sm join-item ${view === "table" ? "btn-primary" : "btn-ghost"}`}
+          <button className={`btn btn-sm join-item ${view === "table" ? "btn-primary" : "btn-neutral"}`}
             onClick={() => setView("table")}>Table</button>
         </div>
       </header>
 
       {/* Filter bar */}
       <div className="card bg-base-200/50 border border-base-content/10">
-        <div className="card-body p-4 grid gap-3 md:grid-cols-4 sm:grid-cols-2">
-          <input className="input input-bordered input-sm md:col-span-2"
+        <div className="card-body p-4 flex flex-wrap items-center gap-3">
+          <input className="input input-bordered input-sm flex-1 min-w-[200px]"
             placeholder="Search artist, title, or your notes…"
             onChange={(e) => set({ q: e.target.value || undefined })} />
-          <select className="select select-bordered select-sm"
+          <select className="select select-bordered select-sm min-w-[9rem]"
             onChange={(e) => set({ parent: e.target.value || undefined })}>
             <option value="">All genres</option>
             {facets.parents.map((g) => <option key={g}>{g}</option>)}
           </select>
-          <select className="select select-bordered select-sm"
+          <select className="select select-bordered select-sm min-w-[9rem]"
             value={f.sort}
             onChange={(e) => setF((p) => ({ ...p, sort: e.target.value, page: 1 }))}>
             <option value="rating.desc">Highest rated</option>
@@ -77,22 +77,22 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
             <option value="created_at.desc">Recently added</option>
             <option value="artist.asc">Artist A–Z</option>
           </select>
-          <label className="label cursor-pointer gap-2 text-sm">
-            <input type="checkbox" className="checkbox checkbox-sm checkbox-primary"
-              onChange={(e) => set({ unratedOnly: e.target.checked || undefined })} />
-            Unrated only
-          </label>
-          <select className="select select-bordered select-sm"
+          <select className="select select-bordered select-sm min-w-[9rem]"
             onChange={(e) => set({ collection: e.target.value || undefined })}>
             <option value="">Any collection</option>
             {facets.collections.map((c) => <option key={c}>{c}</option>)}
           </select>
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-sm whitespace-nowrap">
             <span className="text-base-content/60">Rating ≥</span>
             <input type="number" min={0} max={10} step={0.5}
-              className="input input-bordered input-sm w-20"
+              className="input input-bordered input-sm w-16"
               onChange={(e) => set({ ratingMin: e.target.value ? Number(e.target.value) : undefined })} />
           </div>
+          <label className="label cursor-pointer gap-2 text-sm whitespace-nowrap py-0">
+            <input type="checkbox" className="checkbox checkbox-sm checkbox-primary"
+              onChange={(e) => set({ unratedOnly: e.target.checked || undefined })} />
+            Unrated only
+          </label>
         </div>
       </div>
 
