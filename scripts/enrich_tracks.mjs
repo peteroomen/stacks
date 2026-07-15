@@ -21,17 +21,39 @@ const unsort = (a) => a.replace(/^(.*?),\s*(the|a|an)$/i, "$2 $1");
 const akey = (a) => norm(unsort(a));
 const natKey = (title, no) => crypto.createHash("sha1").update(`${title.toLowerCase()}|${no ?? ""}`).digest("hex").slice(0, 16);
 
-async function deezerTracklist(artist, title) {
-  const q = `artist:"${unsort(artist).replace(/"/g, " ")}" album:"${title.replace(/"/g, " ")}"`;
-  const s = await fetch(`https://api.deezer.com/search/album?q=${encodeURIComponent(q)}&limit=5`, { headers: { "User-Agent": UA } });
-  if (!s.ok) return null;
-  const sd = await s.json();
-  if (sd?.error) { await sleep(1500); return null; }
+// strip bracket/symbol junk so "★ [Blackstar]" -> "Blackstar" for free-text search
+const stripJunk = (s) => String(s).replace(/[[\]()★]/g, " ").replace(/\s+/g, " ").trim();
+
+// Find the Deezer album. Try a precise field-scoped query first, then fall back
+// to a fuzzy free-text query that survives typos ("Paul's Botique", "Kraftwek").
+async function deezerFindAlbum(artist, title) {
   const na = akey(artist), nt = norm(title);
-  const pick = (sd.data ?? []).find((a) => {
+  const tokenMatch = (a) => {
     const ra = akey(a.artist?.name || ""), rt = norm(a.title || "");
     return (ra.includes(na) || na.includes(ra)) && (rt.includes(nt) || nt.includes(rt));
-  }) ?? (sd.data ?? [])[0];
+  };
+  // [query, allowFirstFallback] — the field-scoped query already constrains the
+  // album name, so its top hit is safe; the fuzzy one must pass the token guard.
+  const attempts = [
+    [`artist:"${unsort(artist).replace(/"/g, " ")}" album:"${title.replace(/"/g, " ")}"`, true],
+    [stripJunk(`${unsort(artist)} ${title}`), false],
+  ];
+  for (const [q, allowFirst] of attempts) {
+    const s = await fetch(`https://api.deezer.com/search/album?q=${encodeURIComponent(q)}&limit=8`, { headers: { "User-Agent": UA } });
+    if (!s.ok) continue;
+    const sd = await s.json();
+    if (sd?.error) { await sleep(1500); continue; }
+    const data = sd.data ?? [];
+    if (!data.length) { await sleep(150); continue; }
+    const pick = data.find(tokenMatch) ?? (allowFirst ? data[0] : null);
+    if (pick) return pick;
+    await sleep(150);
+  }
+  return null;
+}
+
+async function deezerTracklist(artist, title) {
+  const pick = await deezerFindAlbum(artist, title);
   if (!pick) return null;
   await sleep(150);
   const a = await fetch(`https://api.deezer.com/album/${pick.id}`, { headers: { "User-Agent": UA } });
@@ -79,6 +101,10 @@ let ok = 0, miss = 0;
 for (const [i, a] of todo.entries()) {
   let res = null;
   try { res = await deezerTracklist(a.artist, a.title); } catch { /* ignore */ }
+  // some rows have artist/title reversed ("Maggot Brain - Funkadelic"); retry swapped
+  if (!res || !res.tracks.length) {
+    try { res = await deezerTracklist(a.title, a.artist); } catch { /* ignore */ }
+  }
   if ((!res || !res.tracks.length) && a.mbid) {
     try { res = await mbTracklist(a.mbid); } catch { /* ignore */ }
     await sleep(1100); // MusicBrainz: ~1 req/sec
