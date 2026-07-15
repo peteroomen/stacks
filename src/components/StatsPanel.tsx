@@ -5,6 +5,19 @@ import {
   BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Tooltip, Cell,
 } from "recharts";
 
+// Dark tooltip surface with light text — Recharts defaults to near-black text,
+// which is unreadable on our dark background when a bar is hovered/tapped.
+const TOOLTIP = {
+  contentStyle: {
+    background: "var(--color-base-100)",
+    border: "1px solid color-mix(in oklch, var(--color-base-content) 12%, transparent)",
+    borderRadius: 8,
+    color: "var(--color-base-content)",
+  },
+  labelStyle: { color: "var(--color-base-content)" },
+  itemStyle: { color: "var(--color-base-content)" },
+} as const;
+
 export default function StatsPanel({ albums }: { albums: Album[] }) {
   const byParent = tally(albums.map((a) => a.genre_parent ?? "Unknown"));
   const parentData = Object.entries(byParent)
@@ -40,8 +53,8 @@ export default function StatsPanel({ albums }: { albums: Album[] }) {
               <XAxis type="number" hide />
               <YAxis type="category" dataKey="name" width={82}
                 tick={{ fontSize: 11, fill: "currentColor" }} />
-              <Tooltip cursor={{ fill: "transparent" }}
-                contentStyle={{ background: "var(--color-base-100)", border: "none", borderRadius: 8 }} />
+              <Tooltip cursor={{ fill: "transparent" }} contentStyle={TOOLTIP.contentStyle}
+                labelStyle={TOOLTIP.labelStyle} itemStyle={TOOLTIP.itemStyle} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                 {parentData.map((_, i) => <Cell key={i} fill="var(--color-primary)" />)}
               </Bar>
@@ -53,8 +66,8 @@ export default function StatsPanel({ albums }: { albums: Album[] }) {
             <BarChart data={ratingData}>
               <XAxis dataKey="name" tick={{ fontSize: 10, fill: "currentColor" }} interval={1} />
               <YAxis hide />
-              <Tooltip cursor={{ fill: "transparent" }}
-                contentStyle={{ background: "var(--color-base-100)", border: "none", borderRadius: 8 }} />
+              <Tooltip cursor={{ fill: "transparent" }} contentStyle={TOOLTIP.contentStyle}
+                labelStyle={TOOLTIP.labelStyle} itemStyle={TOOLTIP.itemStyle} />
               <Bar dataKey="value" radius={[4, 4, 0, 0]} fill="var(--color-secondary)" />
             </BarChart>
           </ResponsiveContainer>

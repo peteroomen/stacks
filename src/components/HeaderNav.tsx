@@ -44,30 +44,32 @@ export default function HeaderNav() {
 
       {/* Mobile: hamburger dropdown */}
       <div className="dropdown dropdown-end sm:hidden">
-        <div tabIndex={0} role="button" aria-label="Menu" className="btn btn-ghost btn-sm btn-square">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none"
+        <div tabIndex={0} role="button" aria-label="Menu" className="btn btn-ghost btn-square">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none"
             viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
           </svg>
         </div>
         <ul
           tabIndex={0}
-          className="dropdown-content menu menu-sm mt-2 z-40 w-48 gap-1 rounded-box border border-base-content/10 bg-base-200 p-2 shadow-lg"
+          className="dropdown-content menu mt-3 z-40 w-60 gap-1 rounded-box border border-base-content/10 bg-base-200 p-3 text-base shadow-xl"
         >
           {LINKS.map(([href, label]) => (
             <li key={href}>
               <Link
                 href={href}
                 aria-current={isActive(href, pathname) ? "page" : undefined}
-                className={isActive(href, pathname) ? "bg-primary/15 text-primary font-semibold" : ""}
+                className={`py-3 ${
+                  isActive(href, pathname) ? "bg-primary/15 text-primary font-semibold" : ""
+                }`}
               >
                 {label}
               </Link>
             </li>
           ))}
-          <li>
+          <li className="mt-1 border-t border-base-content/10 pt-1">
             <form action="/auth/signout" method="post">
-              <button type="submit" className="w-full text-left text-base-content/70">
+              <button type="submit" className="w-full py-3 text-left text-base-content/70">
                 Sign out
               </button>
             </form>
