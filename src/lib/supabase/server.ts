@@ -7,6 +7,7 @@ export async function supabaseServer() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      db: { schema: "stacks" },
       cookies: {
         getAll: () => cookieStore.getAll(),
         setAll: (list: { name: string; value: string; options?: Record<string, unknown> }[]) => {

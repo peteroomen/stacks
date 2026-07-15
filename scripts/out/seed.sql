@@ -1,6 +1,6 @@
 -- Auto-generated seed. Idempotent via ON CONFLICT (nat_key).
 -- Assumes a single owner; owner_id is set at import time (see README).
-insert into public.albums
+insert into stacks.albums
   (artist,title,release_type,year,genre,genre_parent,listen_count,rating,comments,collection_status,nat_key,source)
 values
   ('Godspeed You Black Emperor!','F♯A♯∞','Album',1997,'Post-Rock','Rock',1,7.5,'Good parts, but it''s honestly kinda boring. Probably just need another 210 listens and I''ll get it',NULL,'e215703112e9ff65','csv'),
