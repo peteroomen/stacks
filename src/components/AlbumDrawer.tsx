@@ -67,6 +67,7 @@ export default function AlbumDrawer({
   const topId = ratedTracks.length
     ? ratedTracks.reduce((a, b) => ((b.rating ?? 0) > (a.rating ?? 0) ? b : a)).id
     : null;
+  const maxPlays = Math.max(0, ...(tracks ?? []).map((t) => t.play_count));
 
   return (
     <div className="fixed inset-0 z-40 flex items-end sm:items-stretch sm:justify-end" onClick={onClose}>
@@ -146,7 +147,8 @@ export default function AlbumDrawer({
                     {t.id === topId && <span className="ml-1 text-primary" title="Top-rated track">★</span>}
                   </span>
                   {t.play_count > 0 && (
-                    <span className="text-xs text-base-content/50 rating-num shrink-0">{t.play_count}▶</span>
+                    <span className={`text-xs rating-num shrink-0 ${t.play_count === maxPlays ? "text-primary font-bold" : "text-base-content/50"}`}
+                      title={t.play_count === maxPlays ? "Most-played track" : undefined}>{t.play_count}▶</span>
                   )}
                   {t.duration_ms != null && (
                     <span className="text-xs text-base-content/40 rating-num shrink-0 w-9 text-right hidden sm:inline">
