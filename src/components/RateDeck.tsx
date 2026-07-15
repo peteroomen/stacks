@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Album } from "@/lib/types";
 import { ytMusicUrl } from "@/lib/yt";
-import { Vinyl } from "@/components/Vinyl";
 
 const COLLECTIONS = ["Owned", "Wishlist"];
 
@@ -84,7 +83,7 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
     <div className="max-w-xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight">Rate<Vinyl /></h1>
+          <h1 className="text-2xl font-black tracking-tight">Rate<span className="text-primary">.</span></h1>
           <p className="text-base-content/60 text-sm">{queue.length - i} unrated left</p>
         </div>
         <progress className="progress progress-primary w-28" value={i} max={queue.length} />
