@@ -8,7 +8,7 @@ export default function Chat() {
   });
 
   return (
-    <div className="card bg-base-200/40 border border-base-content/10 h-[70vh] sm:h-[520px] flex flex-col">
+    <div className="card bg-base-200/40 border border-base-content/10 h-[calc(100dvh-12rem)] min-h-[420px] flex flex-col">
       <div className="card-body p-4 gap-3 overflow-y-auto flex-1">
         {messages.length === 0 && (
           <div className="text-sm text-base-content/50 space-y-2">

@@ -38,6 +38,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               <Link href="/library" className="btn btn-ghost btn-sm">
                 Library
               </Link>
+              <Link href="/chat" className="btn btn-ghost btn-sm">
+                Chat
+              </Link>
               <form action="/auth/signout" method="post">
                 <button type="submit" className="btn btn-ghost btn-sm text-base-content/60">
                   Sign out
