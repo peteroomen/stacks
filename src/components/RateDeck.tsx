@@ -27,6 +27,14 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
   // load fields when the card changes
   useEffect(() => { reset(queue[i]); }, [i, queue, reset]);
 
+  // preload the next few covers so advancing swaps the art instantly
+  useEffect(() => {
+    for (let k = 1; k <= 3; k++) {
+      const url = queue[i + k]?.cover_art_url;
+      if (url) { const img = new window.Image(); img.src = url; }
+    }
+  }, [i, queue]);
+
   const advance = useCallback(() => setI((n) => n + 1), []);
 
   const save = useCallback(async () => {
@@ -94,7 +102,7 @@ export default function RateDeck({ initial }: { initial: Album[] }) {
           <div className="aspect-square w-44 rounded-lg cover-fallback shadow-lg flex items-center justify-center overflow-hidden">
             {album.cover_art_url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={album.cover_art_url} alt="" className="w-full h-full object-cover" />
+              <img key={album.id} src={album.cover_art_url} alt="" className="w-full h-full object-cover" />
             ) : (
               <span className="rating-num text-4xl font-black text-base-content/50">?</span>
             )}
