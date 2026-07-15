@@ -13,7 +13,7 @@ export default async function Dashboard() {
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="text-3xl sm:text-4xl font-black tracking-tight">
+        <h1 className="text-2xl font-black tracking-tight">
           Good evening<span className="text-primary">.</span>
         </h1>
         <p className="text-base-content/60">
