@@ -52,7 +52,8 @@ export default async function Dashboard() {
             <h2 className="text-xl font-bold">Recently played</h2>
             <Link href="/library" className="btn btn-ghost btn-sm">Library →</Link>
           </div>
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-1 px-1">
+          {/* pt-1/-mt-1 keeps the covers' hover ring from clipping at the scrollport top */}
+          <div className="flex gap-3 overflow-x-auto pt-1 -mt-1 pb-2 -mx-1 px-1">
             {recent.map((a) => (
               <a key={a.id} href={ytMusicUrl(a.artist, a.title)} target="_blank"
                 rel="noopener noreferrer" title={`Play ${a.title} on YouTube Music`}
