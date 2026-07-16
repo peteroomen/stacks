@@ -17,7 +17,7 @@ TanStack-free table (daisyUI `table`) · Recharts · `react-markdown` (chat rend
 | Data cleanup + normalization + parent-genre mapping | ✅ done (`scripts/clean_and_seed.py`) |
 | Seed: 694 albums from your CSV (`scripts/out/seed.sql`) | ✅ generated, idempotent |
 | Schema + RLS + indexes + rollup fns (`supabase/migrations/`) | ✅ done |
-| Library view — grid/table, search, filters, sort, pagination, detail drawer, inline edit | ✅ done |
+| Library view — grid/table, search, filters, sort, pagination, detail drawer, inline edit, manual add | ✅ done |
 | Dashboard — stats, recently played, insight cards, chat | ✅ done |
 | AI insight cards (revisit queue / blind spots / recent run / recs), cached | ✅ done (needs key) |
 | AI chat with tools — search / read / edit / add / listening stats + album cards & YT Music links (`react-markdown` rendering) | ✅ done (needs key) |

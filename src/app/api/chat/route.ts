@@ -1,9 +1,9 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { convertToCoreMessages, streamText, tool, type Message } from "ai";
 import { z } from "zod";
-import { createHash } from "node:crypto";
 import { supabaseServer } from "@/lib/supabase/server";
 import { buildLibraryDigest } from "@/lib/digest";
+import { natKey } from "@/lib/albums";
 import { trimHistory } from "@/lib/history";
 
 export const maxDuration = 30;
@@ -20,12 +20,6 @@ const orIlike = (raw: string) => {
     ? `artist.ilike."%${safe}%",title.ilike."%${safe}%",comments.ilike."%${safe}%"`
     : null;
 };
-
-const natKey = (artist: string, title: string, year?: number | null) =>
-  createHash("sha1")
-    .update(`${artist.toLowerCase()}|${title.toLowerCase()}|${year ?? ""}`)
-    .digest("hex")
-    .slice(0, 16);
 
 const WINDOW_DAYS: Record<string, number | null> = {
   "7d": 7,
