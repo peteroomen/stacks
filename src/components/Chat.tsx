@@ -61,6 +61,94 @@ function AlbumCards({ albums }: { albums: CardAlbum[] }) {
   );
 }
 
+// Ranked listening-stats card from a listening_stats result — covers (album
+// grouping), spin counts, and a bar scaled to the top row.
+type StatsRow = {
+  label: string;
+  spins: number;
+  track_plays: number;
+  album_id?: string;
+  artist?: string;
+  title?: string;
+  cover_art_url?: string | null;
+};
+type StatsResult = { window?: string; by?: string; results?: StatsRow[] };
+
+const WINDOW_LABEL: Record<string, string> = {
+  "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days",
+  "365d": "Last year", all: "All time",
+};
+
+function StatsCard({ result }: { result: StatsResult }) {
+  const rows = result.results ?? [];
+  if (!rows.length) {
+    return (
+      <div className="text-xs text-base-content/50 border border-base-content/15 bg-base-content/5 rounded-full px-2 py-0.5 w-fit">
+        📊 no plays in this window
+      </div>
+    );
+  }
+  // Bars scale on spins; if the window has only sampled tracks (no full
+  // spins anywhere), fall back to track plays so the bars still mean something.
+  const useSpins = rows.some((r) => r.spins > 0);
+  const value = (r: StatsRow) => (useSpins ? r.spins : r.track_plays);
+  const max = Math.max(1, ...rows.map(value));
+
+  return (
+    <div className="card bg-base-200/60 border border-base-content/10 w-full max-w-md not-prose">
+      <div className="card-body p-3 gap-2">
+        <div className="text-[11px] uppercase tracking-wide text-base-content/50">
+          📊 {WINDOW_LABEL[result.window ?? ""] ?? result.window} · by {result.by ?? "album"}
+        </div>
+        <ol className="space-y-1.5">
+          {rows.map((r, i) => {
+            const inner = (
+              <>
+                <span className="w-4 text-right text-xs rating-num text-base-content/40 shrink-0">{i + 1}</span>
+                {r.album_id && (
+                  r.cover_art_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={r.cover_art_url} alt="" loading="lazy"
+                      className="w-8 h-8 rounded object-cover shrink-0" />
+                  ) : (
+                    <div className="cover-fallback w-8 h-8 rounded shrink-0" />
+                  )
+                )}
+                <span className="flex-1 min-w-0">
+                  <span className="block truncate text-sm font-medium">{r.label}</span>
+                  <span className="block h-1 rounded-full bg-base-content/10 mt-1">
+                    <span className="block h-1 rounded-full bg-primary"
+                      style={{ width: `${Math.max(4, (value(r) / max) * 100)}%` }} />
+                  </span>
+                </span>
+                <span className="text-right shrink-0">
+                  <span className="block rating-num font-bold text-sm">
+                    {r.spins > 0 ? `${r.spins} spin${r.spins === 1 ? "" : "s"}` : "—"}
+                  </span>
+                  <span className="block text-[10px] text-base-content/50 rating-num">{r.track_plays}▶</span>
+                </span>
+              </>
+            );
+            return (
+              <li key={i}>
+                {r.artist && r.title ? (
+                  <a href={ytMusicUrl(r.artist, r.title)} target="_blank" rel="noopener noreferrer"
+                    title={`Play ${r.title} on YouTube Music`}
+                    className="flex items-center gap-2 rounded hover:bg-base-content/5 transition-colors">
+                    {inner}
+                  </a>
+                ) : (
+                  <span className="flex items-center gap-2">{inner}</span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
 // One-line summary for a tool call, shown as an activity chip.
 function chipLabel(inv: ToolInvocation): { icon: string; text: string; write: boolean } {
   const args = (inv.args ?? {}) as Record<string, unknown>;
@@ -116,6 +204,11 @@ function ToolChip({ inv }: { inv: ToolInvocation }) {
   if (inv.toolName === "show_albums" && inv.state === "result") {
     const albums = ((inv.result as { albums?: CardAlbum[] } | undefined)?.albums ?? []) as CardAlbum[];
     return <AlbumCards albums={albums} />;
+  }
+  // listening_stats renders as a ranked stats card once resolved (chip on error).
+  if (inv.toolName === "listening_stats" && inv.state === "result") {
+    const result = inv.result as (StatsResult & { error?: string }) | undefined;
+    if (result && !result.error) return <StatsCard result={result} />;
   }
   const pending = inv.state !== "result";
   const { icon, text, write } = chipLabel(inv);

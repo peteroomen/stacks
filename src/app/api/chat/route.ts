@@ -216,7 +216,7 @@ export async function POST(req: Request) {
         try {
           let query = supabase
             .from("plays")
-            .select("album_id, listened_at, track, albums(artist, title, genre_parent)")
+            .select("album_id, listened_at, track, albums(artist, title, genre_parent, cover_art_url)")
             .not("album_id", "is", null)
             .order("listened_at", { ascending: false })
             .limit(5000);
@@ -232,7 +232,12 @@ export async function POST(req: Request) {
             album_id: string;
             listened_at: string;
             track: string;
-            albums: { artist: string; title: string; genre_parent: string | null } | null;
+            albums: {
+              artist: string;
+              title: string;
+              genre_parent: string | null;
+              cover_art_url: string | null;
+            } | null;
           };
           const rows = (data ?? []) as unknown as Row[];
 
@@ -297,15 +302,22 @@ export async function POST(req: Request) {
           const top = [...groups.entries()]
             .sort(([, x], [, y]) => y.spins - x.spins || y.track_plays - x.track_plays)
             .slice(0, limit)
-            .map(([key, g]) => ({
-              label: g.label,
-              spins: g.spins,
-              track_plays: g.track_plays,
-              distinct_albums: g.albums.size,
-              last_played: g.last,
-              // Album id only meaningful when grouping by album (single-album groups).
-              album_id: by === "album" ? key : undefined,
-            }));
+            .map(([key, g]) => {
+              // Album grouping = single-album groups; enrich for the stats card
+              // (cover thumb + YT link need artist/title/cover, id for drill-in).
+              const alb = by === "album" ? albumStats.get(key)?.alb : null;
+              return {
+                label: g.label,
+                spins: g.spins,
+                track_plays: g.track_plays,
+                distinct_albums: g.albums.size,
+                last_played: g.last,
+                album_id: by === "album" ? key : undefined,
+                artist: alb?.artist,
+                title: alb?.title,
+                cover_art_url: alb?.cover_art_url ?? null,
+              };
+            });
           return { window, by, results: top };
         } catch (e) {
           return { error: e instanceof Error ? e.message : "stats failed" };
@@ -346,7 +358,8 @@ export async function POST(req: Request) {
     "TOOLS — you can search, read, edit, and pull stats from their library:",
     "- Use search_library / get_album / listening_stats to check facts instead of guessing. Never invent album ids; ids come only from tool results.",
     "- Only call update_album or add_album when the user clearly asks for the change. After a write, restate exactly what changed (e.g. 'Rumours: rating 8 → 9').",
-    "- When you recommend albums that ARE in the library (revisits, deep cuts), after your prose call show_albums with their ids so cards render.",
+    "- REQUIRED, not optional: whenever your reply recommends or highlights specific albums that ARE in the library (revisits, deep cuts, favourites), you MUST also call show_albums with their ids — the UI renders them as cards. Do not end such a reply without calling it.",
+    "- listening_stats results render as a ranked stats card in the UI automatically. Do NOT retype the ranking as a list; add one or two observations about it instead.",
     "- When you recommend albums NOT in the library, give each a YouTube Music link as a markdown link: [Artist — Title](https://music.youtube.com/search?q=<url-encoded 'Artist Title'>). Un-sort names like 'Beatles, The' to 'The Beatles' first.",
     "",
     "LIBRARY DIGEST (JSON):",
