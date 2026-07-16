@@ -203,7 +203,10 @@ export async function POST(req: Request) {
 
     listening_stats: tool({
       description:
-        "Top-N listening stats from the plays timeline, grouped by album, artist, or genre over a time window.",
+        "Top-N listening stats from the plays timeline, grouped by album, artist, or genre over a time window. " +
+        "spins = full album listening sessions (>=3 distinct tracks within a 4h window, same definition as the importer); " +
+        "track_plays = raw per-track scrobbles. Describe album listening in spins, not track_plays — " +
+        "24 track_plays of a 12-track album is two listens, not twenty-four.",
       parameters: z.object({
         window: z.enum(["7d", "30d", "90d", "365d", "all"]).optional(),
         by: z.enum(["album", "artist", "genre"]).optional(),
@@ -213,7 +216,7 @@ export async function POST(req: Request) {
         try {
           let query = supabase
             .from("plays")
-            .select("album_id, listened_at, albums(artist, title, genre_parent)")
+            .select("album_id, listened_at, track, albums(artist, title, genre_parent)")
             .not("album_id", "is", null)
             .order("listened_at", { ascending: false })
             .limit(5000);
@@ -228,42 +231,80 @@ export async function POST(req: Request) {
           type Row = {
             album_id: string;
             listened_at: string;
+            track: string;
             albums: { artist: string; title: string; genre_parent: string | null } | null;
           };
+          const rows = (data ?? []) as unknown as Row[];
+
+          // Sessionize per album first — a "spin" is a cluster of that album's
+          // plays within a 4h gap containing >=3 distinct tracks (the importer's
+          // definition), so one stray shuffle track never counts as a listen.
+          const GAP_MS = 4 * 60 * 60 * 1000;
+          const MIN_TRACKS = 3;
+          const byAlbumRows = new Map<string, Row[]>();
+          for (const p of rows) {
+            (byAlbumRows.get(p.album_id) ?? byAlbumRows.set(p.album_id, []).get(p.album_id)!).push(p);
+          }
+          const albumStats = new Map<
+            string,
+            { alb: Row["albums"]; spins: number; track_plays: number; last: string }
+          >();
+          for (const [albumId, ps] of byAlbumRows) {
+            const sorted = [...ps].sort((a, b) => a.listened_at.localeCompare(b.listened_at));
+            let spins = 0;
+            let prev = -Infinity;
+            let cur: Set<string> | null = null;
+            const flush = () => { if (cur && cur.size >= MIN_TRACKS) spins++; };
+            for (const p of sorted) {
+              const at = new Date(p.listened_at).getTime();
+              if (at - prev > GAP_MS) { flush(); cur = new Set(); }
+              cur!.add(p.track.toLowerCase());
+              prev = at;
+            }
+            flush();
+            albumStats.set(albumId, {
+              alb: ps[0].albums,
+              spins,
+              track_plays: ps.length,
+              last: sorted[sorted.length - 1].listened_at,
+            });
+          }
+
+          // Aggregate album stats up to the requested grouping.
           const groups = new Map<
             string,
-            { label: string; plays: number; albums: Set<string>; last: string; ids: Set<string> }
+            { label: string; spins: number; track_plays: number; albums: Set<string>; last: string }
           >();
-          for (const p of (data ?? []) as unknown as Row[]) {
-            const alb = p.albums;
+          for (const [albumId, s] of albumStats) {
             const label =
               by === "artist"
-                ? alb?.artist ?? "Unknown"
+                ? s.alb?.artist ?? "Unknown"
                 : by === "genre"
-                ? alb?.genre_parent ?? "Unknown"
-                : alb
-                ? `${alb.artist} — ${alb.title}`
+                ? s.alb?.genre_parent ?? "Unknown"
+                : s.alb
+                ? `${s.alb.artist} — ${s.alb.title}`
                 : "Unknown";
-            const key = by === "album" ? p.album_id : label;
+            const key = by === "album" ? albumId : label;
             const g =
               groups.get(key) ??
-              { label, plays: 0, albums: new Set<string>(), last: p.listened_at, ids: new Set<string>() };
-            g.plays += 1;
-            g.albums.add(p.album_id);
-            g.ids.add(p.album_id);
-            if (p.listened_at > g.last) g.last = p.listened_at;
+              { label, spins: 0, track_plays: 0, albums: new Set<string>(), last: s.last };
+            g.spins += s.spins;
+            g.track_plays += s.track_plays;
+            g.albums.add(albumId);
+            if (s.last > g.last) g.last = s.last;
             groups.set(key, g);
           }
-          const top = [...groups.values()]
-            .sort((x, y) => y.plays - x.plays)
+          const top = [...groups.entries()]
+            .sort(([, x], [, y]) => y.spins - x.spins || y.track_plays - x.track_plays)
             .slice(0, limit)
-            .map((g) => ({
+            .map(([key, g]) => ({
               label: g.label,
-              plays: g.plays,
+              spins: g.spins,
+              track_plays: g.track_plays,
               distinct_albums: g.albums.size,
               last_played: g.last,
               // Album id only meaningful when grouping by album (single-album groups).
-              album_id: by === "album" ? [...g.ids][0] : undefined,
+              album_id: by === "album" ? key : undefined,
             }));
           return { window, by, results: top };
         } catch (e) {
