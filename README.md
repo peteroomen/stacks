@@ -70,5 +70,11 @@ All read `.env.local` (Node ≥ 20.6): `node --env-file=.env.local scripts/<name
 
 - **Wrapped:** LLM-written annual recap from `plays` + ratings.
 - **Export:** CSV round-trip so the data is never trapped.
+- **Listening queue:** an ordered "spin next" list you (or the chat) can push
+  albums onto; surfaced on the dashboard.
+- **Chat history in DB:** persist conversations as threads (chat currently
+  keeps only the live session, localStorage at best).
+- **Chat rec cards with lookup:** cover-art cards for recommendations *outside*
+  the library (in-library recs already get cards; needs a Deezer/CAA lookup).
 - More in `docs/work/2026-07-15-audit.md` (listening timeline, spin-sessionized
   counts for scrobbles, URL-synced filters, genre drill-down, and more).
