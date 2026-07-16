@@ -1,9 +1,10 @@
 import { anthropic } from "@ai-sdk/anthropic";
-import { streamText, tool } from "ai";
+import { convertToCoreMessages, streamText, tool, type Message } from "ai";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { supabaseServer } from "@/lib/supabase/server";
 import { buildLibraryDigest } from "@/lib/digest";
+import { trimHistory } from "@/lib/history";
 
 export const maxDuration = 30;
 
@@ -38,12 +39,17 @@ const WINDOW_DAYS: Record<string, number | null> = {
 // the caller's own library. All tools run on the RLS session client, so they can
 // only ever touch this user's rows; no service-role anywhere in this path.
 export async function POST(req: Request) {
-  const { messages } = await req.json();
+  const { messages } = (await req.json()) as { messages: Message[] };
   const supabase = await supabaseServer();
 
-  // Digest stays as taste/voice grounding; hard facts now come from tools.
+  // Digest stays as taste/voice grounding; hard facts now come from tools —
+  // so the chat gets the slim shape (insights keeps the full one).
   const { data: albums } = await supabase.from("albums").select("*");
-  const digest = buildLibraryDigest(albums ?? []);
+  const digest = buildLibraryDigest(albums ?? [], {
+    favourites: 15,
+    revisit: 12,
+    comments: 12,
+  });
 
   const tools = {
     search_library: tool({
@@ -96,7 +102,7 @@ export async function POST(req: Request) {
         try {
           const { data: album, error } = await supabase
             .from("albums")
-            .select("*")
+            .select(LIST_COLS)
             .eq("id", id)
             .single();
           if (error) return { error: error.message };
@@ -140,7 +146,19 @@ export async function POST(req: Request) {
             .select("id, artist, title, rating, comments, collection_status")
             .single();
           if (error) return { error: error.message };
-          return { before, after };
+          // Echo only what changed (plus identity) — a rating tweak shouldn't
+          // replay a 10K-char comments field into the context on every step.
+          const clip = (v: unknown) =>
+            typeof v === "string" && v.length > 200 ? v.slice(0, 197) + "…" : v;
+          const beforeOut: Record<string, unknown> = { id, artist: after.artist, title: after.title };
+          const afterOut: Record<string, unknown> = { ...beforeOut };
+          for (const k of ["rating", "comments", "collection_status"] as const) {
+            if (before[k] !== after[k]) {
+              beforeOut[k] = clip(before[k]);
+              afterOut[k] = clip(after[k]);
+            }
+          }
+          return { before: beforeOut, after: afterOut };
         } catch (e) {
           return { error: e instanceof Error ? e.message : "update failed" };
         }
@@ -163,12 +181,12 @@ export async function POST(req: Request) {
           // Pre-check: exact nat_key, or a case-insensitive artist+title match.
           const { data: byKey } = await supabase
             .from("albums")
-            .select("*")
+            .select(LIST_COLS)
             .eq("nat_key", key)
             .limit(1);
           const { data: byName } = await supabase
             .from("albums")
-            .select("*")
+            .select(LIST_COLS)
             .ilike("artist", artist)
             .ilike("title", title)
             .limit(1);
@@ -191,7 +209,7 @@ export async function POST(req: Request) {
               source: "chat",
               nat_key: key,
             })
-            .select("*")
+            .select(LIST_COLS)
             .single();
           if (error) return { error: error.message };
           return { album: data, already_existed: false };
@@ -366,12 +384,34 @@ export async function POST(req: Request) {
     JSON.stringify(digest),
   ].join("\n");
 
+  // Prompt caching: tools + system + digest render first, so a breakpoint on
+  // the system message caches the whole fixed prefix (~3.5K tokens) — every
+  // step after the first, and every later turn, reads it at ~0.1× price. The
+  // digest is deterministic (see digest.ts), so the prefix bytes repeat.
+  const cached = { anthropic: { cacheControl: { type: "ephemeral" as const } } };
+
+  const history = convertToCoreMessages(trimHistory(messages));
+  // Second breakpoint on the newest message: later turns re-read the whole
+  // history up to here instead of re-paying it at full price.
+  const last = history[history.length - 1];
+  if (last) last.providerOptions = cached;
+
   const result = streamText({
     model: anthropic("claude-sonnet-4-6"),
-    system,
-    messages,
+    messages: [{ role: "system", content: system, providerOptions: cached }, ...history],
     tools,
     maxSteps: 6,
+    onFinish: ({ usage, providerMetadata }) => {
+      // One line in the Vercel logs to confirm caching works in production:
+      // cacheRead should be non-zero from the second step of any tool turn on.
+      const a = providerMetadata?.anthropic as
+        | { cacheReadInputTokens?: number; cacheCreationInputTokens?: number }
+        | undefined;
+      console.log(
+        `[chat] in=${usage.promptTokens} out=${usage.completionTokens}` +
+          ` cacheRead=${a?.cacheReadInputTokens ?? 0} cacheWrite=${a?.cacheCreationInputTokens ?? 0}`
+      );
+    },
   });
   return result.toDataStreamResponse();
 }

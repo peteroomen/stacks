@@ -5,8 +5,19 @@ import type { Album } from "./types";
  * without blowing the context window. This is the RAG-lite grounding used by
  * both the dashboard insight cards and the chat. Ratings AND comments are the
  * signal that makes recommendations feel personal rather than generic.
+ *
+ * Must be byte-stable for identical inputs: the chat route puts this in a
+ * prompt-cached prefix, and any nondeterminism (Math.random, Date.now) would
+ * silently invalidate the cache on every request.
  */
-export function buildLibraryDigest(albums: Album[]) {
+export type DigestOptions = {
+  favourites?: number;
+  revisit?: number;
+  comments?: number;
+};
+
+export function buildLibraryDigest(albums: Album[], opts: DigestOptions = {}) {
+  const { favourites = 30, revisit = 25, comments = 20 } = opts;
   const rated = albums.filter((a) => a.rating != null);
   const byParent = tally(albums.map((a) => a.genre_parent ?? "Unknown"));
   const byDecade = tally(
@@ -25,17 +36,21 @@ export function buildLibraryDigest(albums: Album[]) {
   const revisitCandidates = rated
     .filter((a) => a.rating! >= 5.5 && a.rating! <= 7.5 && a.comments && revisitPhrases.test(a.comments))
     .map((a) => `${a.artist} — ${a.title} (${a.rating}, "${trim(a.comments!)}")`)
-    .slice(0, 25);
+    .slice(0, revisit);
 
-  // A sample of your actual notes so the model hears your voice
-  const commentSample = shuffle(albums.filter((a) => a.comments))
-    .slice(0, 20)
+  // A sample of your actual notes so the model hears your voice. Selection is a
+  // pseudo-random spread (hash order, not rating order) but DETERMINISTIC —
+  // same library in, same bytes out — so the prompt cache can actually hit.
+  const commentSample = albums
+    .filter((a) => a.comments)
+    .sort((a, b) => hash(a.artist + "|" + a.title) - hash(b.artist + "|" + b.title))
+    .slice(0, comments)
     .map((a) => `${a.artist} — ${a.title} [${a.rating ?? "?"}]: "${trim(a.comments!)}"`);
 
   const highRated = rated
     .filter((a) => a.rating! >= 9)
     .map((a) => `${a.artist} — ${a.title} (${a.rating})`)
-    .slice(0, 30);
+    .slice(0, favourites);
 
   return {
     totals: {
@@ -58,14 +73,12 @@ function tally(xs: string[]) {
   for (const x of xs) m[x] = (m[x] ?? 0) + 1;
   return m;
 }
-// Fisher–Yates; the sort(() => Math.random() - 0.5) trick is badly biased.
-function shuffle<T>(xs: T[]): T[] {
-  const a = [...xs];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
+// djb2 string hash — a cheap, stable "random" ordering key. NOT Math.random:
+// per-request randomness in the digest would bust the prompt cache every turn.
+function hash(s: string): number {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h;
 }
 const round = (n: number) => Math.round(n * 10) / 10;
 const trim = (s: string) => (s.length > 140 ? s.slice(0, 137) + "…" : s);

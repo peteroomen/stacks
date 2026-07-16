@@ -9,6 +9,10 @@ import { normaliseMarkdown } from "@/lib/markdown";
 import { ytMusicUrl } from "@/lib/yt";
 
 const STORAGE_KEY = "stacks-chat-v1";
+// A thread that sat for a day is a new conversation — and an old thread's
+// history costs tokens on every send, so don't resurrect it indefinitely.
+const THREAD_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_SAVED_MESSAGES = 40;
 
 const EXAMPLES = [
   "What have I been playing this month?",
@@ -277,12 +281,17 @@ export default function Chat() {
   const hydrated = useRef(false);
 
   // Hydrate from localStorage once on mount (after SSR, so no markup mismatch).
+  // Envelope: { savedAt, messages } — expired or legacy (bare array, no
+  // timestamp) threads start fresh rather than re-costing their history forever.
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
-        const saved = JSON.parse(raw);
-        if (Array.isArray(saved) && saved.length) setMessages(saved as Message[]);
+        const saved = JSON.parse(raw) as { savedAt?: number; messages?: Message[] };
+        const fresh = typeof saved?.savedAt === "number" && Date.now() - saved.savedAt < THREAD_TTL_MS;
+        if (fresh && Array.isArray(saved.messages) && saved.messages.length) {
+          setMessages(saved.messages);
+        }
       }
     } catch {
       /* corrupt storage → start fresh */
@@ -290,11 +299,15 @@ export default function Chat() {
     hydrated.current = true;
   }, [setMessages]);
 
-  // Persist the thread whenever it changes (only after hydration).
+  // Persist the thread whenever it changes (only after hydration), capped so a
+  // long-lived thread can't balloon the payload of every future request.
   useEffect(() => {
     if (!hydrated.current) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+      localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ savedAt: Date.now(), messages: messages.slice(-MAX_SAVED_MESSAGES) })
+      );
     } catch {
       /* quota / serialization — non-fatal */
     }
