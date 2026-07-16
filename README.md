@@ -6,7 +6,7 @@ knows your taste (your ratings **and your own written notes**).
 
 **Stack:** Next.js 15 (App Router) · TypeScript · Supabase (Postgres + RLS + Auth) ·
 Tailwind v4 + daisyUI 5 (`abyss` theme) · Vercel (+ Cron) · Anthropic via Vercel AI SDK ·
-TanStack-free table (daisyUI `table`) · Recharts.
+TanStack-free table (daisyUI `table`) · Recharts · `react-markdown` (chat rendering).
 
 ---
 
@@ -20,7 +20,7 @@ TanStack-free table (daisyUI `table`) · Recharts.
 | Library view — grid/table, search, filters, sort, pagination, detail drawer, inline edit | ✅ done |
 | Dashboard — stats, recently played, insight cards, chat | ✅ done |
 | AI insight cards (revisit queue / blind spots / recent run / recs), cached | ✅ done (needs key) |
-| AI chat grounded in library digest | ✅ done (needs key) |
+| AI chat with tools — search / read / edit / add / listening stats + album cards & YT Music links (`react-markdown` rendering) | ✅ done (needs key) |
 | ListenBrainz ingestion cron + album/track rollup | ✅ done (needs username) |
 | Cover-art enrichment (CAA → Deezer → iTunes), cron + backfill script | ✅ done |
 | Google Takeout historical backfill (`scripts/import_takeout.mjs`) | ✅ done |
