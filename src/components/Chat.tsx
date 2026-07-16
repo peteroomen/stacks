@@ -29,8 +29,10 @@ type CardAlbum = {
 
 function AlbumCards({ albums }: { albums: CardAlbum[] }) {
   if (!albums.length) return null;
+  // pt-1/px-1 with -mx-1: breathing room inside the scrollport so the covers'
+  // hover ring (a box-shadow outside their bounds) isn't clipped at the edges.
   return (
-    <div className="flex gap-3 overflow-x-auto pb-2 mt-1">
+    <div className="flex gap-3 overflow-x-auto pt-1 px-1 -mx-1 pb-2">
       {albums.map((a) => (
         <a key={a.id} href={ytMusicUrl(a.artist, a.title)} target="_blank"
           rel="noopener noreferrer" title={`Play ${a.title} on YouTube Music`}
