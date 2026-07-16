@@ -3,7 +3,9 @@
 import { useEffect, useRef } from "react";
 import { useChat } from "ai/react";
 import type { Message, ToolInvocation } from "ai";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
+import remarkGfm from "remark-gfm";
+import { normaliseMarkdown } from "@/lib/markdown";
 import { ytMusicUrl } from "@/lib/yt";
 
 const STORAGE_KEY = "stacks-chat-v1";
@@ -139,6 +141,25 @@ function ToolChip({ inv }: { inv: ToolInvocation }) {
   );
 }
 
+// React-markdown component overrides (table styling adapted from riff's
+// MessageBubble — GFM tables in a horizontally-scrollable wrapper so a wide
+// table never blows out the chat column).
+//  • hr — dropped; `---` dividers add no value inside a chat bubble.
+const MD_COMPONENTS: Components = {
+  a: ({ children, href }) => (
+    <a href={href} target="_blank" rel="noopener noreferrer" className="link link-primary">
+      {children}
+    </a>
+  ),
+  hr: () => null,
+  table: ({ children }) => (
+    <div className="my-2 overflow-x-auto rounded-lg border border-base-content/10">
+      <table className="table table-sm w-full">{children}</table>
+    </div>
+  ),
+  thead: ({ children }) => <thead className="bg-base-content/5">{children}</thead>,
+};
+
 // Assistant text rendered as themed markdown; links open in a new tab.
 function MarkdownText({ text }: { text: string }) {
   return (
@@ -147,16 +168,8 @@ function MarkdownText({ text }: { text: string }) {
                     [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1
                     [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-1 [&_li]:my-0.5
                     [&_code]:bg-base-content/10 [&_code]:px-1 [&_code]:rounded [&_code]:text-xs">
-      <ReactMarkdown
-        components={{
-          a: ({ children, href }) => (
-            <a href={href} target="_blank" rel="noopener noreferrer" className="link link-primary">
-              {children}
-            </a>
-          ),
-        }}
-      >
-        {text}
+      <ReactMarkdown remarkPlugins={[remarkGfm]} components={MD_COMPONENTS}>
+        {normaliseMarkdown(text)}
       </ReactMarkdown>
     </div>
   );
