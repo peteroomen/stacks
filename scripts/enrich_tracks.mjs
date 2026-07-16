@@ -116,7 +116,14 @@ for (const [i, a] of todo.entries()) {
     const seen = new Set();
     const rows = res.tracks
       .filter((t) => t.title)
-      .map((t) => ({ owner_id: OWNER, album_id: a.id, disc_no: t.disc_no, track_no: t.track_no, title: t.title, duration_ms: t.duration_ms, nat_key: natKey(t.title, t.track_no) }))
+      // Some sources (certain Deezer albums) omit track_position, which used to
+      // land as null track_no — leaving get_album/the drawer with no running
+      // order to sort or cite by. Fall back to the tracklist index (1-based) so
+      // every track is always numbered.
+      .map((t, i) => {
+        const no = t.track_no ?? i + 1;
+        return { owner_id: OWNER, album_id: a.id, disc_no: t.disc_no, track_no: no, title: t.title, duration_ms: t.duration_ms, nat_key: natKey(t.title, no) };
+      })
       .filter((r) => !seen.has(r.nat_key) && seen.add(r.nat_key));
     const { error: upErr } = await supabase.from("tracks").upsert(rows, { onConflict: "album_id,nat_key", ignoreDuplicates: true });
     if (upErr) { console.log(`  ! ${a.artist} - ${a.title}: ${upErr.message}`); miss++; }

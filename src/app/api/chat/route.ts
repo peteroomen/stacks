@@ -39,7 +39,11 @@ const WINDOW_DAYS: Record<string, number | null> = {
 // the caller's own library. All tools run on the RLS session client, so they can
 // only ever touch this user's rows; no service-role anywhere in this path.
 export async function POST(req: Request) {
-  const { messages } = (await req.json()) as { messages: Message[] };
+  const body = (await req.json().catch(() => null)) as { messages?: Message[] } | null;
+  if (!body || !Array.isArray(body.messages)) {
+    return Response.json({ error: "Bad request: expected a messages array." }, { status: 400 });
+  }
+  const messages = body.messages;
   const supabase = await supabaseServer();
 
   // Digest stays as taste/voice grounding; hard facts now come from tools —
@@ -96,7 +100,10 @@ export async function POST(req: Request) {
 
     get_album: tool({
       description:
-        "Full detail for one album by id: comments and the tracklist (track_no, title, rating, play_count, duration_ms).",
+        "Full detail for one album by id: comments and the tracklist. Each track has a `position` " +
+        "(the album running order, 1-based) plus disc_no, title, rating, play_count, duration_ms. " +
+        "Cite tracks by `position` and present them in the order returned — some albums lack raw " +
+        "track numbers, so `position` is the authoritative running order, not track_no.",
       parameters: z.object({ id: z.string().uuid() }),
       execute: async ({ id }) => {
         try {
@@ -106,12 +113,19 @@ export async function POST(req: Request) {
             .eq("id", id)
             .single();
           if (error) return { error: error.message };
+          // Order by disc then track_no (nulls last). Some tracklists were
+          // enriched without track numbers (all null); for those the query
+          // falls back to insertion order, which is the correct running order.
+          // We then stamp an explicit 1-based `position` so the model always
+          // has a stable ordinal to cite even when track_no is null.
           const { data: tracks } = await supabase
             .from("tracks")
-            .select("track_no, title, rating, play_count, duration_ms")
+            .select("disc_no, track_no, title, rating, play_count, duration_ms")
             .eq("album_id", id)
+            .order("disc_no", { ascending: true })
             .order("track_no", { ascending: true, nullsFirst: false });
-          return { album, tracks: tracks ?? [] };
+          const positioned = (tracks ?? []).map((t, i) => ({ position: i + 1, ...t }));
+          return { album, tracks: positioned };
         } catch (e) {
           return { error: e instanceof Error ? e.message : "lookup failed" };
         }
@@ -401,6 +415,11 @@ export async function POST(req: Request) {
     messages: [{ role: "system", content: system, providerOptions: cached }, ...history],
     tools,
     maxSteps: 6,
+    onError: ({ error }) => {
+      // Surface the real failure in the Vercel logs — model overloads, rate
+      // limits, and missing-key errors all land here rather than a bare 500.
+      console.error("[chat] stream error:", error);
+    },
     onFinish: ({ usage, providerMetadata }) => {
       // One line in the Vercel logs to confirm caching works in production:
       // cacheRead should be non-zero from the second step of any tool turn on.
@@ -413,5 +432,26 @@ export async function POST(req: Request) {
       );
     },
   });
-  return result.toDataStreamResponse();
+  // By default the AI SDK masks stream errors as a generic "An error occurred."
+  // This is a single-user personal app, so pass the real message through to the
+  // client — that's what lets the chat show *what* actually went wrong.
+  return result.toDataStreamResponse({ getErrorMessage: toChatError });
+}
+
+// Turn whatever the model/provider threw into a short, human-readable line.
+// Anthropic overloads and rate limits are the common transient cases; call
+// those out so a retry reads as "try again", not "something is broken".
+function toChatError(error: unknown): string {
+  const raw =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+      ? error
+      : "Unexpected error talking to the model.";
+  const lower = raw.toLowerCase();
+  if (lower.includes("overloaded")) return "The model is overloaded right now. Give it a moment and retry.";
+  if (lower.includes("rate limit") || lower.includes("429")) return "Rate limited — wait a few seconds and retry.";
+  if (lower.includes("api key") || lower.includes("authentication") || lower.includes("401"))
+    return "The Anthropic API key is missing or invalid (check ANTHROPIC_API_KEY).";
+  return raw.length > 300 ? raw.slice(0, 297) + "…" : raw;
 }

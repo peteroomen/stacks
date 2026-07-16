@@ -218,10 +218,17 @@ function ToolChip({ inv }: { inv: ToolInvocation }) {
   }
   const pending = inv.state !== "result";
   const { icon, text, write } = chipLabel(inv);
+  // On a tool failure the chip label is a terse "search failed" / "add failed";
+  // stash the actual error text in the tooltip so hovering shows what broke.
+  const err =
+    inv.state === "result"
+      ? ((inv.result as { error?: string } | undefined)?.error ?? undefined)
+      : undefined;
   return (
     <div
+      title={err}
       className={`inline-flex items-center gap-1 text-xs rounded-full px-2 py-0.5 border w-fit
-        ${write ? "border-warning/40 bg-warning/10 text-warning" : "border-base-content/15 bg-base-content/5 text-base-content/70"}
+        ${err ? "border-error/40 bg-error/10 text-error" : write ? "border-warning/40 bg-warning/10 text-warning" : "border-base-content/15 bg-base-content/5 text-base-content/70"}
         ${pending ? "opacity-60" : ""}`}
     >
       <span>{icon}</span>
@@ -386,7 +393,7 @@ export default function Chat() {
         {error && (
           <div className="chat chat-start">
             <div className="chat-bubble chat-bubble-error text-sm">
-              Something went wrong.{" "}
+              {error.message?.trim() ? error.message : "Something went wrong."}{" "}
               <button type="button" className="link" onClick={() => reload()}>Retry</button>
             </div>
           </div>
