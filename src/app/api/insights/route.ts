@@ -1,8 +1,26 @@
 import { NextResponse } from "next/server";
 import { anthropic } from "@ai-sdk/anthropic";
-import { generateText } from "ai";
+import { generateObject } from "ai";
+import { z } from "zod";
 import { supabaseServer } from "@/lib/supabase/server";
 import { buildLibraryDigest } from "@/lib/digest";
+
+// Schema-enforced output: no "STRICT JSON" prompting, no markdown-fence
+// stripping, and a malformed reply can't burn the whole spend into a 502.
+const InsightsSchema = z.object({
+  revisit_queue: z.object({
+    title: z.string(),
+    items: z.array(z.object({ album: z.string(), why: z.string() })),
+  }),
+  blind_spots: z.object({
+    title: z.string(),
+    items: z.array(z.object({ area: z.string(), why: z.string() })),
+  }),
+  recent_run: z.object({ title: z.string(), summary: z.string() }),
+  recommendations: z.object({
+    items: z.array(z.object({ album: z.string(), why: z.string() })),
+  }),
+});
 
 export const maxDuration = 60;
 
@@ -23,29 +41,20 @@ export async function POST() {
   const { data: albums } = await supabase.from("albums").select("*");
   const digest = buildLibraryDigest(albums ?? []);
 
-  const prompt = `Given this listener's library digest, produce four insight cards as STRICT JSON
-(no markdown, no prose outside JSON) with this shape:
-{
-  "revisit_queue":   { "title": string, "items": [{ "album": string, "why": string }] },
-  "blind_spots":     { "title": string, "items": [{ "area": string, "why": string }] },
-  "recent_run":      { "title": string, "summary": string },
-  "recommendations": { "items": [{ "album": string, "why": string }] }
-}
+  const prompt = `Given this listener's library digest, produce four insight cards.
 Rules: revisit_queue must draw from revisitCandidates. Recommendations must be real albums NOT already
 owned, each justified against their ratings or notes. Keep every "why" under 22 words.
 
 DIGEST:
 ${JSON.stringify(digest)}`;
 
-  const { text } = await generateText({ model: anthropic("claude-sonnet-4-6"), prompt });
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-  } catch {
-    return NextResponse.json({ error: "model returned non-JSON", raw: text }, { status: 502 });
-  }
+  const { object } = await generateObject({
+    model: anthropic("claude-sonnet-4-6"),
+    schema: InsightsSchema,
+    prompt,
+  });
 
-  const rows = Object.entries(parsed).map(([kind, payload]) => ({
+  const rows = Object.entries(object).map(([kind, payload]) => ({
     owner_id: owner, kind, payload, generated_at: new Date().toISOString(),
   }));
   const { error } = await supabase.from("insights").upsert(rows, { onConflict: "owner_id,kind" });

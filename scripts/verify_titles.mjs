@@ -193,8 +193,12 @@ async function mbCandidates(artist, title) {
 
 // ---------------------------------------------------------------- llm (optional)
 // Batch the ambiguous cases to the Anthropic Messages API for a same/different
-// verdict. Strict JSON out; plain fetch, no new deps.
-async function llmVerdicts(rows) {
+// verdict. Strict JSON out; plain fetch, no new deps. Chunked so a big sweep
+// can't truncate the JSON array at max_tokens (silently dropping verdicts),
+// and compact-serialized — pretty-printing is ~30-40% more input tokens for
+// zero model benefit.
+const LLM_BATCH = 25;
+async function llmVerdictsBatch(rows, offset) {
   const items = rows.map((r, i) => ({
     index: i,
     have: { artist: r.artist, title: r.title },
@@ -206,7 +210,7 @@ Return ONLY a JSON array, one object per item, no prose:
 [{"index": <int>, "same": <bool>, "artist": "<corrected or ''>", "title": "<corrected or ''>"}]
 
 Items:
-${JSON.stringify(items, null, 2)}`;
+${JSON.stringify(items)}`;
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -214,14 +218,28 @@ ${JSON.stringify(items, null, 2)}`;
       "anthropic-version": "2023-06-01",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: 2048, messages: [{ role: "user", content: prompt }] }),
+    body: JSON.stringify({ model: "claude-haiku-4-5", max_tokens: 4096, messages: [{ role: "user", content: prompt }] }),
   });
   if (!res.ok) { console.error(`  LLM call failed: ${res.status}`); return []; }
   const data = await res.json();
   const text = (data.content ?? []).map((c) => c.text ?? "").join("");
   const m = text.match(/\[[\s\S]*\]/);
   if (!m) { console.error("  LLM returned no JSON array"); return []; }
-  try { return JSON.parse(m[0]); } catch { console.error("  LLM JSON parse failed"); return []; }
+  try {
+    const verdicts = JSON.parse(m[0]);
+    // Re-base batch-local indexes onto the full ambiguous list.
+    return verdicts
+      .filter((v) => v && Number.isInteger(v.index) && v.index >= 0 && v.index < rows.length)
+      .map((v) => ({ ...v, index: offset + v.index }));
+  } catch { console.error("  LLM JSON parse failed"); return []; }
+}
+async function llmVerdicts(rows) {
+  const out = [];
+  for (let start = 0; start < rows.length; start += LLM_BATCH) {
+    if (rows.length > LLM_BATCH) console.log(`  … batch ${start / LLM_BATCH + 1}/${Math.ceil(rows.length / LLM_BATCH)}`);
+    out.push(...(await llmVerdictsBatch(rows.slice(start, start + LLM_BATCH), start)));
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------- scope

@@ -1,7 +1,7 @@
 # Token-efficiency audit + improvement plan
 
 **Scope:** every place the app spends Anthropic tokens.
-**Status:** audit done; plan proposed below, nothing implemented yet (per plan-first convention).
+**Status:** implemented — all four phases below shipped in one pass. Remaining runtime check: after deploy, one tool-using chat turn should log `cacheRead > 0` (see `onFinish` logging in the chat route).
 
 ## Where tokens are spent
 
