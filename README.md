@@ -63,6 +63,10 @@ All read `.env.local` (Node ≥ 20.6): `node --env-file=.env.local scripts/<name
 - `import_takeout.mjs <watch-history.html>` — YT Music history → sessionized album
   spins + plays timeline. Dry-run by default; `--apply` to commit.
 - `enrich_tracks.mjs` — tracklists per album (Deezer, MusicBrainz fallback).
+- `verify_titles.mjs` — "did you mean?" sweep: catches fossilized artist/title
+  typos (Progidy, Kraftwek) via fuzzy Deezer/MusicBrainz lookup + Levenshtein
+  scoring. Dry-run by default; `--apply` writes, `--llm` adjudicates ambiguous
+  cases, `--all` sweeps everything, `--self-test` runs the offline classifier check.
 - `attribute_track_plays.mjs` — link imported plays to tracks, roll up per-track
   play counts. Requires migration `0005` (fixes the `link_plays_to_tracks` RPC).
 
