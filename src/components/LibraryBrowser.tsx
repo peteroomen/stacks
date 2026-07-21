@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Album, AlbumFilters } from "@/lib/types";
 import { ytMusicUrl } from "@/lib/yt";
 import AlbumDrawer from "./AlbumDrawer";
+import AddAlbumForm from "./AddAlbumForm";
 import { RatingStamp } from "./Vinyl";
 
 type Facets = {
@@ -30,8 +31,28 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [active, setActive] = useState<Album | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const [retryTick, setRetryTick] = useState(0);
   const topRef = useRef<HTMLDivElement>(null);
+
+  // Auto-dismiss the toast so it doesn't linger after an add.
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 3500);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  // A fresh add lands in the grid via a refetch; open its drawer so the user can
+  // rate/annotate it right away. A dupe just surfaces the existing row.
+  const handleAdded = (album: Album, alreadyExisted: boolean) => {
+    setAddOpen(false);
+    setActive(album);
+    setNotice(alreadyExisted
+      ? `Already in your library: ${album.artist} — ${album.title}`
+      : `Added ${album.artist} — ${album.title}`);
+    if (!alreadyExisted) setRetryTick((t) => t + 1);
+  };
 
   // Debounce the free-text search so we don't fire a request per keystroke.
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -96,11 +117,16 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
             {loading ? "…" : `${total} of ${facets.total} albums`}
           </p>
         </div>
-        <div className="join">
-          <button className={`btn btn-sm join-item border-0 ${view === "grid" ? "btn-primary" : "btn-neutral"}`}
-            onClick={() => setView("grid")}>Grid</button>
-          <button className={`btn btn-sm join-item border-0 ${view === "table" ? "btn-primary" : "btn-neutral"}`}
-            onClick={() => setView("table")}>Table</button>
+        <div className="flex items-center gap-2">
+          <button className="btn btn-sm btn-primary gap-1" onClick={() => setAddOpen(true)}>
+            <span aria-hidden className="text-base leading-none">+</span> Add album
+          </button>
+          <div className="join">
+            <button className={`btn btn-sm join-item border-0 ${view === "grid" ? "btn-primary" : "btn-neutral"}`}
+              onClick={() => setView("grid")}>Grid</button>
+            <button className={`btn btn-sm join-item border-0 ${view === "table" ? "btn-primary" : "btn-neutral"}`}
+              onClick={() => setView("table")}>Table</button>
+          </div>
         </div>
       </header>
 
@@ -243,8 +269,19 @@ export default function LibraryBrowser({ facets }: { facets: Facets }) {
         </div>
       )}
 
+      <AddAlbumForm open={addOpen} facets={facets}
+        onClose={() => setAddOpen(false)} onAdded={handleAdded} />
+
       <AlbumDrawer album={active} onClose={() => setActive(null)}
         onSaved={(u) => setAlbums((xs) => xs.map((x) => (x.id === u.id ? u : x)))} />
+
+      {notice && (
+        <div className="toast toast-end z-50">
+          <div className="alert alert-success">
+            <span className="text-sm">{notice}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
