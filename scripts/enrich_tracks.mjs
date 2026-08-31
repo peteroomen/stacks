@@ -16,6 +16,11 @@ if (!SUPA_URL || !KEY || !OWNER) { console.error("Missing Supabase env (URL / SE
 const supabase = createClient(SUPA_URL, KEY, { db: { schema: "stacks" }, auth: { persistSession: false } });
 const UA = "stacks-album-tracker/1.0 (petertheoomen@gmail.com)";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// --renumber: fill track_no on albums that already have tracks (see block below).
+// --apply:    write changes (renumber mode is dry-run without it).
+const RENUMBER = process.argv.includes("--renumber");
+const APPLY = process.argv.includes("--apply");
 const norm = (s) => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
 const unsort = (a) => a.replace(/^(.*?),\s*(the|a|an)$/i, "$2 $1");
 const akey = (a) => norm(unsort(a));
@@ -69,6 +74,22 @@ async function deezerTracklist(artist, title) {
   return { deezerId: String(pick.id), tracks };
 }
 
+// Fetch a Deezer album's tracklist straight from a cached album id, so renumber
+// mode re-uses the exact release the tracks were originally imported from.
+async function deezerAlbumById(id) {
+  const a = await fetch(`https://api.deezer.com/album/${id}`, { headers: { "User-Agent": UA } });
+  if (!a.ok) return null;
+  const ad = await a.json();
+  if (ad?.error) return null;
+  const tracks = (ad.tracks?.data ?? []).map((t) => ({
+    disc_no: t.disk_number ?? 1,
+    track_no: t.track_position ?? null,
+    title: t.title,
+    duration_ms: t.duration ? t.duration * 1000 : null,
+  }));
+  return tracks.length ? { deezerId: String(id), tracks } : null;
+}
+
 async function mbTracklist(mbid) {
   const r = await fetch(`https://musicbrainz.org/ws/2/release?release-group=${mbid}&inc=recordings&fmt=json&limit=1&status=official`, { headers: { "User-Agent": UA } });
   if (!r.ok) return null;
@@ -87,6 +108,74 @@ async function mbTracklist(mbid) {
     )
   );
   return tracks.length ? { deezerId: null, tracks } : null;
+}
+
+// ---------------------------------------------------------------- renumber mode
+// Backfill track_no on albums that ALREADY have tracks but were enriched before
+// positions were captured (track_no null → no reliable running order). Re-fetches
+// the source tracklist and matches existing rows by title to assign track_no.
+// Conservative: only renumbers when the stored titles line up with the source, so
+// a wrong-album match (e.g. a studio album pointed at a live release) surfaces as
+// a flagged skip instead of silently mis-numbering. Dry-run unless --apply.
+if (RENUMBER) {
+  const { data: albumsR, error: aErr } = await supabase
+    .from("albums").select("id, artist, title, mbid, deezer_id").eq("owner_id", OWNER);
+  if (aErr) { console.error("DB read failed:", aErr.message); process.exit(1); }
+  const { data: allTracks, error: tErr } = await supabase
+    .from("tracks").select("id, album_id, title, track_no").eq("owner_id", OWNER);
+  if (tErr) { console.error("DB read failed:", tErr.message); process.exit(1); }
+
+  const byAlbum = new Map();
+  for (const t of allTracks ?? []) {
+    (byAlbum.get(t.album_id) ?? byAlbum.set(t.album_id, []).get(t.album_id)).push(t);
+  }
+  const need = albumsR.filter((a) => (byAlbum.get(a.id) ?? []).some((t) => t.track_no == null));
+  console.log(`${need.length} albums have unnumbered tracks. ${APPLY ? "Applying" : "Dry run (pass --apply to write)"}...`);
+
+  let fixed = 0, skipped = 0, updates = 0;
+  for (const [i, a] of need.entries()) {
+    const rows = byAlbum.get(a.id) ?? [];
+    let src = null;
+    try {
+      if (a.deezer_id) src = await deezerAlbumById(a.deezer_id);
+      if (!src) src = await deezerTracklist(a.artist, a.title);
+      if ((!src || !src.tracks.length) && a.mbid) { src = await mbTracklist(a.mbid); await sleep(1100); }
+    } catch { /* ignore */ }
+    if (!src || !src.tracks.length) { skipped++; console.log(`  ? no source     ${a.artist} - ${a.title}`); await sleep(150); continue; }
+
+    // norm(title) -> position (source track_position when present, else 1-based order)
+    const srcPos = new Map();
+    src.tracks.forEach((t, idx) => { const k = norm(t.title); if (!srcPos.has(k)) srcPos.set(k, t.track_no ?? idx + 1); });
+
+    const planned = [];
+    let unmatched = 0;
+    for (const r of rows) {
+      const pos = srcPos.get(norm(r.title));
+      if (pos == null) { unmatched++; continue; }
+      if (r.track_no !== pos) planned.push({ id: r.id, track_no: pos, title: r.title });
+    }
+    // If too many stored titles don't match the source, it's likely the wrong
+    // album — skip and flag rather than stamp on numbers from a mismatched release.
+    if (unmatched > Math.max(1, Math.floor(rows.length * 0.2))) {
+      skipped++;
+      console.log(`  ! mismatch (${unmatched}/${rows.length} titles unmatched — check the source match)  ${a.artist} - ${a.title}`);
+      await sleep(150); continue;
+    }
+    if (planned.length) {
+      if (APPLY) {
+        for (const p of planned) {
+          const { error: uErr } = await supabase.from("tracks").update({ track_no: p.track_no }).eq("id", p.id);
+          if (uErr) console.log(`    x ${p.title}: ${uErr.message}`); else updates++;
+        }
+      } else updates += planned.length;
+      fixed++;
+      console.log(`  ${APPLY ? "✓" : "→"} ${a.artist} - ${a.title}  (${planned.length} tracks${unmatched ? `, ${unmatched} unmatched` : ""})`);
+    }
+    await sleep(150);
+    if ((i + 1) % 25 === 0) console.log(`  ${i + 1}/${need.length}  (${fixed} numbered, ${skipped} skipped)`);
+  }
+  console.log(`\n${APPLY ? "Done" : "Dry run"}. ${fixed} albums ${APPLY ? "renumbered" : "would be renumbered"}, ${updates} track updates, ${skipped} skipped.`);
+  process.exit(0);
 }
 
 // albums that don't have tracks yet
@@ -116,7 +205,14 @@ for (const [i, a] of todo.entries()) {
     const seen = new Set();
     const rows = res.tracks
       .filter((t) => t.title)
-      .map((t) => ({ owner_id: OWNER, album_id: a.id, disc_no: t.disc_no, track_no: t.track_no, title: t.title, duration_ms: t.duration_ms, nat_key: natKey(t.title, t.track_no) }))
+      // Some sources (certain Deezer albums) omit track_position, which used to
+      // land as null track_no — leaving get_album/the drawer with no running
+      // order to sort or cite by. Fall back to the tracklist index (1-based) so
+      // every track is always numbered.
+      .map((t, i) => {
+        const no = t.track_no ?? i + 1;
+        return { owner_id: OWNER, album_id: a.id, disc_no: t.disc_no, track_no: no, title: t.title, duration_ms: t.duration_ms, nat_key: natKey(t.title, no) };
+      })
       .filter((r) => !seen.has(r.nat_key) && seen.add(r.nat_key));
     const { error: upErr } = await supabase.from("tracks").upsert(rows, { onConflict: "album_id,nat_key", ignoreDuplicates: true });
     if (upErr) { console.log(`  ! ${a.artist} - ${a.title}: ${upErr.message}`); miss++; }
