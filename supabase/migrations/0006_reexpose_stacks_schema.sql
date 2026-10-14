@@ -15,8 +15,11 @@ begin
     from pg_roles r, unnest(r.rolconfig) c
    where r.rolname = 'authenticator' and c like 'pgrst.db_schemas=%';
 
+  -- No role-level override means the list lives in the dashboard (Data API → Exposed
+  -- schemas). Don't guess it here: writing a partial list would un-expose other tenants
+  -- (e.g. forkcast). Fix it in the dashboard instead.
   if cur is null or btrim(cur) = '' then
-    cur := 'public, graphql_public';
+    raise exception 'authenticator has no pgrst.db_schemas override; add stacks via Dashboard → Data API → Exposed schemas';
   end if;
 
   if not exists (
