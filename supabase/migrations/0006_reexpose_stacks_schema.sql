@@ -1,7 +1,8 @@
 -- Re-expose `stacks` to PostgREST.
 --
--- Symptom: the app fails with "invalid schema: stacks" (PGRST106). Cause: another tenant's
--- migration (budget-app, `public`) rewrote `pgrst.db_schemas` on the authenticator role.
+-- Symptom: the app fails with "invalid schema: stacks" (PGRST106). Cause: the
+-- `pgrst.db_schemas` override on the authenticator role was rewritten or cleared (on
+-- 2026-10-14 it was found cleared entirely, so the dashboard default applied).
 -- That setting is a FULL replacement, so writing it without `stacks` silently un-exposes
 -- this app even though its tables and data are untouched.
 --
