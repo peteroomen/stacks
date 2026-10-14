@@ -113,5 +113,11 @@ re-runs are idempotent. Stamp the owner's auth uuid in at load time (see
   `alter function ... set search_path`.
 - **Shared `auth.users`**: other apps' users exist in the same table. RLS by `owner_id` is
   what keeps data separate — never weaken it.
+- **Never write `pgrst.db_schemas` from a hard-coded list.** It's a full replacement, so a
+  migration in one app that sets it without the others un-exposes them (this happened to
+  `stacks` — "invalid schema: stacks" / PGRST106 — after a budget-app migration). Read the
+  current value and append; see `supabase/migrations/0006_reexpose_stacks_schema.sql` for an
+  idempotent append-only block. The dashboard's *Data API → Exposed schemas* field writes the
+  same setting, so check it there too.
 - **Don't rename via SQL**: the project rename (`budget-app` → `personal-apps`) is a
   dashboard-only, cosmetic change; env vars key off the ref, not the name.
