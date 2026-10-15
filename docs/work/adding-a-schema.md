@@ -118,7 +118,6 @@ re-runs are idempotent. Stamp the owner's auth uuid in at load time (see
   stored on the `authenticator` role, so `pg_roles.rolconfig` won't show it; on 2026-10-14
   `stacks` was found missing from it ("invalid schema: stacks" / PGRST106, HTTP 406) with no
   migration responsible. If you ever set `pgrst.db_schemas` via SQL instead, it's a full
-  replacement: read the current value and append, never write a hard-coded partial list (see
-  `supabase/migrations/0006_reexpose_stacks_schema.sql`).
+  replacement: read the current value and append, never write a hard-coded partial list.
 - **Don't rename via SQL**: the project rename (`budget-app` → `personal-apps`) is a
   dashboard-only, cosmetic change; env vars key off the ref, not the name.
