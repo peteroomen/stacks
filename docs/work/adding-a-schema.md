@@ -113,11 +113,12 @@ re-runs are idempotent. Stamp the owner's auth uuid in at load time (see
   `alter function ... set search_path`.
 - **Shared `auth.users`**: other apps' users exist in the same table. RLS by `owner_id` is
   what keeps data separate — never weaken it.
-- **Never write `pgrst.db_schemas` from a hard-coded list.** It's a full replacement, so a
-  migration in one app that sets it without the others un-exposes them (this happened to
-  `stacks` — "invalid schema: stacks" / PGRST106 — after a budget-app migration). Read the
-  current value and append; see `supabase/migrations/0006_reexpose_stacks_schema.sql` for an
-  idempotent append-only block. The dashboard's *Data API → Exposed schemas* field writes the
-  same setting, so check it there too.
+- **Exposed schemas live in the dashboard.** *Data API → Exposed schemas* on `budget-app`
+  must list every tenant (`public, graphql_public, stacks, forkcast`). That setting is not
+  stored on the `authenticator` role, so `pg_roles.rolconfig` won't show it; on 2026-10-14
+  `stacks` was found missing from it ("invalid schema: stacks" / PGRST106, HTTP 406) with no
+  migration responsible. If you ever set `pgrst.db_schemas` via SQL instead, it's a full
+  replacement: read the current value and append, never write a hard-coded partial list (see
+  `supabase/migrations/0006_reexpose_stacks_schema.sql`).
 - **Don't rename via SQL**: the project rename (`budget-app` → `personal-apps`) is a
   dashboard-only, cosmetic change; env vars key off the ref, not the name.
